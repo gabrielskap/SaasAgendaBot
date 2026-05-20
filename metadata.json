@@ -1,0 +1,6 @@
+{
+  "name": "AgendaBot",
+  "description": "SaaS B2B para automação de agendamentos via WhatsApp, gestão de equipe, CRM e financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
