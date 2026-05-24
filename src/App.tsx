@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import SaaSLayout from './components/layout/SaaSLayout';
 
@@ -21,90 +22,68 @@ import FidelidadePage from './pages/fidelidade/FidelidadePage';
 import RelatoriosPage from './pages/relatorios/RelatoriosPage';
 import ConfiguracoesPage from './pages/configuracoes/ConfiguracoesPage';
 
-type ViewMode = 'landing' | 'auth' | 'app';
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  if (isAuthenticated) return <Navigate to="/app/painel" replace />;
+  return <>{children}</>;
+}
+
+function AuthPage({ screen }: { screen: 'login' | 'register' | 'forgot-password' }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <Authentication
+      initialScreen={screen}
+      planSelected={(location.state as { plan?: string })?.plan ?? 'Pro'}
+      onNavigateHome={() => navigate('/')}
+    />
+  );
+}
+
+const screenToPath = (screen: string) =>
+  screen === 'dashboard' ? '/app/painel' : `/app/${screen}`;
 
 export default function App() {
-  const { isAuthenticated } = useAuthStore();
-  const [rootView, setRootView] = useState<ViewMode>('app');
-  const [authSubView, setAuthSubView] = useState<'login' | 'register' | 'forgot-password' | 'register-plan-select'>('login');
-  const [selectedPlanName, setSelectedPlanName] = useState('Pro');
-
-  // Active platform dashboard page
-  const [activeScreen, setActiveScreen] = useState('dashboard');
-
-  // Guard routing side-effect
-  useEffect(() => {
-    if (isAuthenticated) {
-      setRootView('app');
-    } else {
-      setRootView('landing');
-    }
-  }, [isAuthenticated]);
-
-  const handleGoToLogin = () => {
-    setAuthSubView('login');
-    setRootView('auth');
-  };
-
-  const handleGoToRegister = (planName?: string) => {
-    if (planName) {
-      setSelectedPlanName(planName);
-    }
-    setAuthSubView('register');
-    setRootView('auth');
-  };
+  const navigate = useNavigate();
 
   return (
-    <>
-      {rootView === 'landing' && (
-        <LandingPage 
-          onNavigateToLogin={handleGoToLogin}
-          onNavigateToRegister={handleGoToRegister}
-        />
-      )}
+    <Routes>
+      {/* Rotas públicas */}
+      <Route path="/" element={
+        <PublicRoute>
+          <LandingPage
+            onNavigateToLogin={() => navigate('/login')}
+            onNavigateToRegister={(plan) => navigate('/cadastro', { state: { plan } })}
+          />
+        </PublicRoute>
+      } />
+      <Route path="/login" element={<PublicRoute><AuthPage screen="login" /></PublicRoute>} />
+      <Route path="/cadastro" element={<PublicRoute><AuthPage screen="register" /></PublicRoute>} />
+      <Route path="/esqueci-senha" element={<PublicRoute><AuthPage screen="forgot-password" /></PublicRoute>} />
 
-      {rootView === 'auth' && (
-        <Authentication 
-          initialScreen={authSubView}
-          planSelected={selectedPlanName}
-          onNavigateHome={() => setRootView('landing')}
-        />
-      )}
+      {/* Rotas protegidas — área logada */}
+      <Route path="/app" element={<ProtectedRoute><SaaSLayout /></ProtectedRoute>}>
+        <Route index element={<Navigate to="/app/painel" replace />} />
+        <Route path="painel"        element={<DashboardPage onNavigateToScreen={(s) => navigate(screenToPath(s))} />} />
+        <Route path="agenda"        element={<AgendaPage />} />
+        <Route path="clientes"      element={<ClientesPage />} />
+        <Route path="profissionais" element={<ProfissionaisPage />} />
+        <Route path="servicos"      element={<ServicosPage />} />
+        <Route path="financeiro"    element={<FinanceiroPage />} />
+        <Route path="chatbot"       element={<ChatbotPage />} />
+        <Route path="fidelidade"    element={<FidelidadePage />} />
+        <Route path="relatorios"    element={<RelatoriosPage />} />
+        <Route path="configuracoes" element={<ConfiguracoesPage />} />
+      </Route>
 
-      {rootView === 'app' && (
-        <SaaSLayout activeScreen={activeScreen} setActiveScreen={setActiveScreen}>
-          {activeScreen === 'dashboard' && (
-            <DashboardPage onNavigateToScreen={setActiveScreen} />
-          )}
-          {activeScreen === 'agenda' && (
-            <AgendaPage />
-          )}
-          {activeScreen === 'clientes' && (
-            <ClientesPage />
-          )}
-          {activeScreen === 'profissionais' && (
-            <ProfissionaisPage />
-          )}
-          {activeScreen === 'servicos' && (
-            <ServicosPage />
-          )}
-          {activeScreen === 'financeiro' && (
-            <FinanceiroPage />
-          )}
-          {activeScreen === 'chatbot' && (
-            <ChatbotPage />
-          )}
-          {activeScreen === 'fidelidade' && (
-            <FidelidadePage />
-          )}
-          {activeScreen === 'relatorios' && (
-            <RelatoriosPage />
-          )}
-          {activeScreen === 'configuracoes' && (
-            <ConfiguracoesPage />
-          )}
-        </SaaSLayout>
-      )}
-    </>
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

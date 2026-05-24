@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Copy-Item \"e:\\\\Git\\\\SaasAgendaBot\\\\prisma\\\\schema.prisma\" \"e:\\\\Git\\\\SaasAgendaBot\\\\backend\\\\prisma\\\\schema.prisma\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"e:\\\\Git\\\\SaasAgendaBot\\\\backend\\\\prisma\" -Force)",
+      "PowerShell(Copy-Item \"e:\\\\Git\\\\SaasAgendaBot\\\\prisma\\\\schema.prisma\" \"e:\\\\Git\\\\SaasAgendaBot\\\\backend\\\\prisma\\\\schema.prisma\" -Force)",
+      "PowerShell(Set-Location \"e:\\\\Git\\\\SaasAgendaBot\\\\backend\"; Copy-Item \".env.example\" \".env\"; $env:DATABASE_URL = \"postgresql://agendabot:agendabot_secret@localhost:5432/agendabot_dev\"; npx prisma generate --schema=./prisma/schema.prisma 2>&1 | Select-Object -Last 8)",
+      "PowerShell(Set-Location \"e:\\\\Git\\\\SaasAgendaBot\\\\backend\"; $env:DATABASE_URL = \"postgresql://agendabot:agendabot_secret@localhost:5432/agendabot_dev\"; npx prisma generate --schema=./prisma/schema.prisma 2>&1)",
+      "PowerShell(Get-Command docker -ErrorAction SilentlyContinue; Get-Command \"docker.exe\" -ErrorAction SilentlyContinue; Test-Path \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\"; Test-Path \"$env:LOCALAPPDATA\\\\Docker\\\\wsl\")",
+      "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)",
+      "PowerShell(winget --version 2>&1)",
+      "PowerShell(wsl --status 2>&1)"
+    ]
+  }
+}

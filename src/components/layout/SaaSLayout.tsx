@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { 
   BarChart3, 
@@ -28,14 +29,10 @@ import {
   Smartphone
 } from 'lucide-react';
 
-interface SaaSLayoutProps {
-  children: React.ReactNode;
-  activeScreen: string;
-  setActiveScreen: (screen: string) => void;
-}
-
-export default function SaaSLayout({ children, activeScreen, setActiveScreen }: SaaSLayoutProps) {
+export default function SaaSLayout() {
   const { user, tenant, logout } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
@@ -49,16 +46,16 @@ export default function SaaSLayout({ children, activeScreen, setActiveScreen }: 
   ]);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Painel Geral', icon: BarChart3, role: ['Admin', 'Gerente'] },
-    { id: 'agenda', label: 'Agenda do Dia', icon: Calendar, role: ['Admin', 'Gerente', 'Profissional', 'Recepcionista'] },
-    { id: 'clientes', label: 'Clientes (CRM)', icon: Users, role: ['Admin', 'Gerente', 'Recepcionista'] },
-    { id: 'profissionais', label: 'Profissionais', icon: Sliders, role: ['Admin', 'Gerente'] },
-    { id: 'servicos', label: 'Serviços/Menu', icon: CheckCircle2, role: ['Admin', 'Gerente', 'Recepcionista'] },
-    { id: 'financeiro', label: 'Fluxo Financeiro', icon: DollarSign, role: ['Admin', 'Gerente'] },
-    { id: 'chatbot', label: 'Config. Chatbot', icon: BrainCircuit, role: ['Admin'] },
-    { id: 'fidelidade', label: 'Fidelidade & Pontos', icon: Award, role: ['Admin', 'Gerente'] },
-    { id: 'relatorios', label: 'Relatórios Hub', icon: BarChart3, role: ['Admin', 'Gerente'] },
-    { id: 'configuracoes', label: 'Preferências', icon: Settings, role: ['Admin', 'Gerente'] },
+    { id: 'dashboard',     label: 'Painel Geral',       path: '/app/painel',        icon: BarChart3,   role: ['Admin', 'Gerente'] },
+    { id: 'agenda',        label: 'Agenda do Dia',       path: '/app/agenda',        icon: Calendar,    role: ['Admin', 'Gerente', 'Profissional', 'Recepcionista'] },
+    { id: 'clientes',      label: 'Clientes (CRM)',      path: '/app/clientes',      icon: Users,       role: ['Admin', 'Gerente', 'Recepcionista'] },
+    { id: 'profissionais', label: 'Profissionais',       path: '/app/profissionais', icon: Sliders,     role: ['Admin', 'Gerente'] },
+    { id: 'servicos',      label: 'Serviços/Menu',       path: '/app/servicos',      icon: CheckCircle2, role: ['Admin', 'Gerente', 'Recepcionista'] },
+    { id: 'financeiro',    label: 'Fluxo Financeiro',    path: '/app/financeiro',    icon: DollarSign,  role: ['Admin', 'Gerente'] },
+    { id: 'chatbot',       label: 'Config. Chatbot',     path: '/app/chatbot',       icon: BrainCircuit, role: ['Admin'] },
+    { id: 'fidelidade',    label: 'Fidelidade & Pontos', path: '/app/fidelidade',    icon: Award,       role: ['Admin', 'Gerente'] },
+    { id: 'relatorios',    label: 'Relatórios Hub',      path: '/app/relatorios',    icon: BarChart3,   role: ['Admin', 'Gerente'] },
+    { id: 'configuracoes', label: 'Preferências',        path: '/app/configuracoes', icon: Settings,    role: ['Admin', 'Gerente'] },
   ];
 
   // Filtering modules depending on mockup user privileges
@@ -111,13 +108,13 @@ export default function SaaSLayout({ children, activeScreen, setActiveScreen }: 
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeScreen === item.id;
+            const isActive = location.pathname === item.path;
             return (
               <button
                 key={item.id}
                 id={`sidebar-link-${item.id}`}
                 onClick={() => {
-                  setActiveScreen(item.id);
+                  navigate(item.path);
                   setIsMobileMenuOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -200,12 +197,12 @@ export default function SaaSLayout({ children, activeScreen, setActiveScreen }: 
           <nav className="space-y-2 flex-1 overflow-y-auto">
             {visibleMenuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeScreen === item.id;
+              const isActive = location.pathname === item.path;
               return (
                 <button
                   key={item.id}
                   onClick={() => {
-                    setActiveScreen(item.id);
+                    navigate(item.path);
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold ${
@@ -342,15 +339,15 @@ export default function SaaSLayout({ children, activeScreen, setActiveScreen }: 
                     <p className="text-sm font-bold text-[#1A1F2E] truncate mt-0.5">{user?.email}</p>
                   </div>
                   <div className="py-1">
-                    <button 
-                      onClick={() => { setActiveScreen('configuracoes'); setShowProfileDropdown(false); }}
+                    <button
+                      onClick={() => { navigate('/app/configuracoes'); setShowProfileDropdown(false); }}
                       className="w-full text-left px-4 py-2 text-xs text-[#1A1F2E] hover:bg-[#F8FAFC] font-medium flex items-center gap-2"
                     >
                       <Settings className="w-4 h-4 text-[#64748B]" />
                       Configurações do Sistema
                     </button>
-                    <button 
-                      onClick={() => { setActiveScreen('chatbot'); setShowProfileDropdown(false); }}
+                    <button
+                      onClick={() => { navigate('/app/chatbot'); setShowProfileDropdown(false); }}
                       className="w-full text-left px-4 py-2 text-xs text-[#1A1F2E] hover:bg-[#F8FAFC] font-medium flex items-center gap-2"
                     >
                       <BrainCircuit className="w-4 h-4 text-[#00C896]" />
@@ -375,7 +372,7 @@ export default function SaaSLayout({ children, activeScreen, setActiveScreen }: 
 
         {/* WORKSPACE SCROLL CONTENT */}
         <main className="flex-grow p-4 md:p-8 max-w-[1440px] w-full mx-auto">
-          {children}
+          <Outlet />
         </main>
 
       </div>

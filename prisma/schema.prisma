@@ -1,0 +1,937 @@
+// =============================================================================
+// AgendaBot — Schema Prisma Multi-Tenant
+// =============================================================================
+// Convenção: todos os modelos usam prefixo AgendaBot_
+// Banco: PostgreSQL (recomendado para suporte a enums nativos e JSON)
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum AgendaBot_Plan {
+  STARTER
+  PRO
+  BUSINESS
+}
+
+enum AgendaBot_UserRole {
+  ADMIN
+  MANAGER
+  PROFESSIONAL
+  RECEPTIONIST
+}
+
+enum AgendaBot_AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AgendaBot_BookedVia {
+  WHATSAPP
+  MANUAL
+  ONLINE
+}
+
+enum AgendaBot_TransactionType {
+  INCOME
+  EXPENSE
+  COMMISSION
+}
+
+enum AgendaBot_PaymentMethod {
+  PIX
+  CASH
+  CREDIT
+  DEBIT
+  PACKAGE
+}
+
+enum AgendaBot_TransactionStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum AgendaBot_CommissionStatus {
+  PENDING
+  PAID
+}
+
+enum AgendaBot_ConversationStatus {
+  BOT
+  HUMAN
+  CLOSED
+}
+
+enum AgendaBot_MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum AgendaBot_MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  DOCUMENT
+}
+
+enum AgendaBot_CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+enum AgendaBot_CampaignFilterType {
+  INACTIVE
+  BIRTHDAY
+  VIP
+  ALL
+}
+
+enum AgendaBot_RecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  RESPONDED
+  CONVERTED
+}
+
+enum AgendaBot_LoyaltyRewardType {
+  DISCOUNT_PERCENT
+  FREE_SERVICE
+  GIFT
+}
+
+enum AgendaBot_WhatsappConsent {
+  GRANTED
+  DENIED
+  PENDING
+}
+
+enum AgendaBot_SessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+  HUMAN_HANDOFF
+}
+
+// =============================================================================
+// 1. TENANT — Estabelecimento
+// =============================================================================
+
+model AgendaBot_Tenant {
+  id             String    @id @default(cuid())
+  name           String
+  slug           String    @unique // URL amigável: meu-salao.agendabot.com
+  logo_url       String?
+  phone          String?
+  email          String?
+  cnpj           String?   @unique
+  address        String?
+  city           String?
+  state          String?
+  zipcode        String?
+
+  plan           AgendaBot_Plan @default(STARTER)
+  plan_expires_at DateTime?
+
+  timezone       String    @default("America/Sao_Paulo")
+  currency       String    @default("BRL")
+
+  is_active      Boolean   @default(true)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime? // soft delete
+
+  // Relacionamentos
+  hours            AgendaBot_TenantHours[]
+  users            AgendaBot_User[]
+  professionals    AgendaBot_Professional[]
+  service_categories AgendaBot_ServiceCategory[]
+  services         AgendaBot_Service[]
+  clients          AgendaBot_Client[]
+  appointments     AgendaBot_Appointment[]
+  transactions     AgendaBot_Transaction[]
+  cash_registers   AgendaBot_CashRegister[]
+  commissions      AgendaBot_Commission[]
+  chatbot_config   AgendaBot_ChatbotConfig?
+  conversations    AgendaBot_Conversation[]
+  loyalty_config   AgendaBot_LoyaltyConfig?
+  loyalty_rewards  AgendaBot_LoyaltyReward[]
+  loyalty_redemptions AgendaBot_LoyaltyRedemption[]
+  campaigns        AgendaBot_Campaign[]
+  uazapi_instances AgendaBot_UazapiInstance[]
+  flow_bots        AgendaBot_FlowBot[]
+
+  @@index([slug])
+  @@index([is_active])
+  @@map("AgendaBot_Tenant")
+}
+
+// =============================================================================
+// 2. TENANT HOURS — Horários de funcionamento do estabelecimento
+// =============================================================================
+
+model AgendaBot_TenantHours {
+  id          String  @id @default(cuid())
+  tenant_id   String
+  day_of_week Int     // 0=Domingo, 1=Segunda, ..., 6=Sábado
+  open_time   String  // HH:MM (ex: "09:00")
+  close_time  String  // HH:MM (ex: "18:00")
+  is_closed   Boolean @default(false)
+
+  tenant      AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, day_of_week])
+  @@index([tenant_id])
+  @@map("AgendaBot_TenantHours")
+}
+
+// =============================================================================
+// 3. USER — Usuários do sistema (têm acesso ao painel)
+// =============================================================================
+
+model AgendaBot_User {
+  id             String    @id @default(cuid())
+  tenant_id      String
+  name           String
+  email          String
+  phone          String?
+  password_hash  String
+  avatar_url     String?
+  role           AgendaBot_UserRole @default(RECEPTIONIST)
+
+  is_active      Boolean   @default(true)
+  last_login_at  DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime? // soft delete
+
+  tenant         AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  refresh_tokens AgendaBot_RefreshToken[]
+  professional   AgendaBot_Professional?
+
+  // Ações realizadas pelo usuário
+  appointments_created AgendaBot_Appointment[]   @relation("AppointmentCreatedBy")
+  appointment_logs     AgendaBot_AppointmentLog[] @relation("AppointmentLogChangedBy")
+  transactions_created AgendaBot_Transaction[]   @relation("TransactionCreatedBy")
+  cash_registers_opened AgendaBot_CashRegister[] @relation("CashRegisterOpenedBy")
+  cash_registers_closed AgendaBot_CashRegister[] @relation("CashRegisterClosedBy")
+  conversations_assigned AgendaBot_Conversation[] @relation("ConversationAssignedTo")
+  campaigns_created    AgendaBot_Campaign[]       @relation("CampaignCreatedBy")
+
+  @@unique([tenant_id, email])
+  @@index([tenant_id])
+  @@index([email])
+  @@index([role])
+  @@map("AgendaBot_User")
+}
+
+// =============================================================================
+// 4. REFRESH TOKEN — Tokens de renovação de sessão JWT
+// =============================================================================
+
+model AgendaBot_RefreshToken {
+  id          String    @id @default(cuid())
+  user_id     String
+  token_hash  String    @unique // hash SHA-256 do token real
+  expires_at  DateTime
+  revoked_at  DateTime? // null = válido
+  created_at  DateTime  @default(now())
+
+  user        AgendaBot_User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@index([expires_at])
+  @@map("AgendaBot_RefreshToken")
+}
+
+// =============================================================================
+// 5. PROFESSIONAL — Profissionais que realizam atendimentos
+// =============================================================================
+
+model AgendaBot_Professional {
+  id                 String  @id @default(cuid())
+  tenant_id          String
+  user_id            String? @unique // nullable: profissional sem acesso ao painel
+
+  name               String
+  email              String?
+  phone              String?
+  avatar_url         String?
+  bio                String?
+  commission_percent Decimal? @db.Decimal(5, 2) // ex: 40.00 = 40%
+  color              String?  // cor na agenda (hex: #FF5733)
+
+  is_active          Boolean   @default(true)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime? // soft delete
+
+  tenant             AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user               AgendaBot_User?  @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  hours              AgendaBot_ProfessionalHours[]
+  time_off           AgendaBot_ProfessionalTimeOff[]
+  services           AgendaBot_ProfessionalService[]
+  appointments       AgendaBot_Appointment[]
+  transactions       AgendaBot_Transaction[]
+  commissions        AgendaBot_Commission[]
+
+  @@index([tenant_id])
+  @@index([is_active])
+  @@map("AgendaBot_Professional")
+}
+
+// =============================================================================
+// 6. PROFESSIONAL HOURS — Horários de trabalho do profissional
+// =============================================================================
+
+model AgendaBot_ProfessionalHours {
+  id              String  @id @default(cuid())
+  professional_id String
+  day_of_week     Int     // 0–6
+  start_time      String  // HH:MM
+  end_time        String  // HH:MM
+  is_day_off      Boolean @default(false)
+
+  professional    AgendaBot_Professional @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+
+  @@unique([professional_id, day_of_week])
+  @@index([professional_id])
+  @@map("AgendaBot_ProfessionalHours")
+}
+
+// =============================================================================
+// 7. PROFESSIONAL TIME OFF — Folgas e férias
+// =============================================================================
+
+model AgendaBot_ProfessionalTimeOff {
+  id              String   @id @default(cuid())
+  professional_id String
+  start_date      DateTime @db.Date
+  end_date        DateTime @db.Date
+  reason          String?
+  created_at      DateTime @default(now())
+
+  professional    AgendaBot_Professional @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@index([start_date, end_date])
+  @@map("AgendaBot_ProfessionalTimeOff")
+}
+
+// =============================================================================
+// 8. SERVICE CATEGORY — Categorias de serviços
+// =============================================================================
+
+model AgendaBot_ServiceCategory {
+  id         String   @id @default(cuid())
+  tenant_id  String
+  name       String
+  color      String?  // cor de destaque (hex)
+  created_at DateTime @default(now())
+
+  tenant     AgendaBot_Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  services   AgendaBot_Service[]
+
+  @@index([tenant_id])
+  @@map("AgendaBot_ServiceCategory")
+}
+
+// =============================================================================
+// 9. SERVICE — Serviços oferecidos
+// =============================================================================
+
+model AgendaBot_Service {
+  id               String   @id @default(cuid())
+  tenant_id        String
+  category_id      String?
+
+  name             String
+  description      String?
+  duration_minutes Int      // duração em minutos
+  price            Decimal  @db.Decimal(10, 2)
+  image_url        String?
+
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  deleted_at       DateTime? // soft delete
+
+  tenant           AgendaBot_Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  category         AgendaBot_ServiceCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  professionals    AgendaBot_ProfessionalService[]
+  appointments     AgendaBot_Appointment[]
+
+  @@index([tenant_id])
+  @@index([category_id])
+  @@index([is_active])
+  @@map("AgendaBot_Service")
+}
+
+// =============================================================================
+// 10. PROFESSIONAL SERVICE — N:M profissional ↔ serviço
+// =============================================================================
+
+model AgendaBot_ProfessionalService {
+  professional_id String
+  service_id      String
+  custom_price    Decimal?  @db.Decimal(10, 2) // sobrescreve preço padrão
+  created_at      DateTime  @default(now())
+
+  professional    AgendaBot_Professional @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  service         AgendaBot_Service      @relation(fields: [service_id], references: [id], onDelete: Cascade)
+
+  @@id([professional_id, service_id])
+  @@index([service_id])
+  @@map("AgendaBot_ProfessionalService")
+}
+
+// =============================================================================
+// 11. CLIENT — Clientes do estabelecimento
+// =============================================================================
+
+model AgendaBot_Client {
+  id                String    @id @default(cuid())
+  tenant_id         String
+  name              String
+  phone             String?
+  email             String?
+  birthdate         DateTime? @db.Date
+  avatar_url        String?
+  notes             String?
+
+  // LGPD
+  whatsapp_consent  AgendaBot_WhatsappConsent @default(PENDING)
+  consent_date      DateTime?
+
+  // Métricas calculadas (denormalizadas para performance)
+  total_visits      Int     @default(0)
+  total_spent       Decimal @default(0) @db.Decimal(10, 2)
+  loyalty_points    Int     @default(0)
+
+  is_active         Boolean   @default(true)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime? // soft delete
+
+  tenant            AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  appointments      AgendaBot_Appointment[]
+  conversations     AgendaBot_Conversation[]
+  loyalty_redemptions AgendaBot_LoyaltyRedemption[]
+  campaign_recipients AgendaBot_CampaignRecipient[]
+
+  @@unique([tenant_id, phone])
+  @@index([tenant_id])
+  @@index([phone])
+  @@index([email])
+  @@index([whatsapp_consent])
+  @@map("AgendaBot_Client")
+}
+
+// =============================================================================
+// 12. APPOINTMENT — Agendamentos
+// =============================================================================
+
+model AgendaBot_Appointment {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  client_id       String
+  professional_id String
+  service_id      String
+
+  scheduled_at    DateTime  // início do atendimento
+  end_at          DateTime  // fim calculado (scheduled_at + duration)
+  duration_minutes Int
+
+  status          AgendaBot_AppointmentStatus @default(PENDING)
+
+  price           Decimal   @db.Decimal(10, 2)
+  deposit_amount  Decimal?  @db.Decimal(10, 2)
+  deposit_paid    Boolean   @default(false)
+
+  notes           String?
+  cancelled_reason String?
+  cancelled_at    DateTime?
+
+  booked_via      AgendaBot_BookedVia @default(MANUAL)
+  created_by      String?   // user_id de quem agendou
+
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          AgendaBot_Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  client          AgendaBot_Client       @relation(fields: [client_id], references: [id], onDelete: Restrict)
+  professional    AgendaBot_Professional @relation(fields: [professional_id], references: [id], onDelete: Restrict)
+  service         AgendaBot_Service      @relation(fields: [service_id], references: [id], onDelete: Restrict)
+  creator         AgendaBot_User?        @relation("AppointmentCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  logs            AgendaBot_AppointmentLog[]
+  transactions    AgendaBot_Transaction[]
+  commissions     AgendaBot_Commission[]
+  loyalty_redemptions AgendaBot_LoyaltyRedemption[]
+
+  @@index([tenant_id])
+  @@index([client_id])
+  @@index([professional_id])
+  @@index([service_id])
+  @@index([scheduled_at])
+  @@index([status])
+  @@index([tenant_id, scheduled_at]) // consulta principal da agenda
+  @@index([tenant_id, status])
+  @@map("AgendaBot_Appointment")
+}
+
+// =============================================================================
+// 13. APPOINTMENT LOG — Histórico de alterações de agendamentos
+// =============================================================================
+
+model AgendaBot_AppointmentLog {
+  id             String    @id @default(cuid())
+  appointment_id String
+  changed_by     String?   // user_id
+  old_status     AgendaBot_AppointmentStatus?
+  new_status     AgendaBot_AppointmentStatus?
+  note           String?
+  created_at     DateTime  @default(now())
+
+  appointment    AgendaBot_Appointment @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+  user           AgendaBot_User?       @relation("AppointmentLogChangedBy", fields: [changed_by], references: [id], onDelete: SetNull)
+
+  @@index([appointment_id])
+  @@index([changed_by])
+  @@map("AgendaBot_AppointmentLog")
+}
+
+// =============================================================================
+// 14. TRANSACTION — Transações financeiras
+// =============================================================================
+
+model AgendaBot_Transaction {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  appointment_id  String?   // nullable: despesa sem agendamento
+  professional_id String?   // nullable: receita sem profissional
+
+  type            AgendaBot_TransactionType
+  category        String?   // ex: "Produto", "Aluguel", "Serviço"
+  description     String?
+  amount          Decimal   @db.Decimal(10, 2)
+
+  payment_method  AgendaBot_PaymentMethod?
+  status          AgendaBot_TransactionStatus @default(PENDING)
+
+  paid_at         DateTime?
+  due_at          DateTime?
+  created_by      String?   // user_id
+
+  created_at      DateTime  @default(now())
+
+  tenant          AgendaBot_Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  appointment     AgendaBot_Appointment?  @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  professional    AgendaBot_Professional? @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  creator         AgendaBot_User?         @relation("TransactionCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  commissions     AgendaBot_Commission[]
+
+  @@index([tenant_id])
+  @@index([appointment_id])
+  @@index([professional_id])
+  @@index([type])
+  @@index([status])
+  @@index([paid_at])
+  @@index([due_at])
+  @@index([tenant_id, paid_at]) // relatório financeiro por período
+  @@map("AgendaBot_Transaction")
+}
+
+// =============================================================================
+// 15. CASH REGISTER — Caixa do dia
+// =============================================================================
+
+model AgendaBot_CashRegister {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  date             DateTime  @db.Date
+
+  opened_by        String?   // user_id
+  closed_by        String?   // user_id
+
+  opening_balance  Decimal   @default(0) @db.Decimal(10, 2)
+  closing_balance  Decimal?  @db.Decimal(10, 2)
+  total_income     Decimal   @default(0) @db.Decimal(10, 2)
+  total_expense    Decimal   @default(0) @db.Decimal(10, 2)
+
+  opened_at        DateTime  @default(now())
+  closed_at        DateTime?
+  notes            String?
+
+  tenant           AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  opener           AgendaBot_User?  @relation("CashRegisterOpenedBy", fields: [opened_by], references: [id], onDelete: SetNull)
+  closer           AgendaBot_User?  @relation("CashRegisterClosedBy", fields: [closed_by], references: [id], onDelete: SetNull)
+
+  @@unique([tenant_id, date])
+  @@index([tenant_id])
+  @@index([date])
+  @@map("AgendaBot_CashRegister")
+}
+
+// =============================================================================
+// 16. COMMISSION — Comissões dos profissionais
+// =============================================================================
+
+model AgendaBot_Commission {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  professional_id String
+  appointment_id  String?
+  transaction_id  String?
+
+  amount          Decimal   @db.Decimal(10, 2)
+  percent         Decimal   @db.Decimal(5, 2)
+  status          AgendaBot_CommissionStatus @default(PENDING)
+
+  paid_at         DateTime?
+  created_at      DateTime  @default(now())
+
+  tenant          AgendaBot_Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  professional    AgendaBot_Professional  @relation(fields: [professional_id], references: [id], onDelete: Restrict)
+  appointment     AgendaBot_Appointment?  @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  transaction     AgendaBot_Transaction?  @relation(fields: [transaction_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([professional_id])
+  @@index([appointment_id])
+  @@index([status])
+  @@map("AgendaBot_Commission")
+}
+
+// =============================================================================
+// 17. CHATBOT CONFIG — Configuração do bot WhatsApp por tenant
+// =============================================================================
+
+model AgendaBot_ChatbotConfig {
+  id                     String  @id @default(cuid())
+  tenant_id              String  @unique
+
+  whatsapp_number        String?
+  instance_name          String? // legado — mantido por compatibilidade
+  instance_id            String? @unique // FK → AgendaBot_UazapiInstance (uazapiGO) — 1:1
+  is_active              Boolean @default(false)
+
+  // Templates de mensagem
+  welcome_message        String?
+  menu_message           String?
+  confirmation_message   String?
+  reminder_24h_message   String?
+  reminder_2h_message    String?
+  post_service_message   String?
+  out_of_hours_message   String?
+
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  tenant                 AgendaBot_Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  instance               AgendaBot_UazapiInstance? @relation(fields: [instance_id], references: [id], onDelete: SetNull)
+
+  @@map("AgendaBot_ChatbotConfig")
+}
+
+// =============================================================================
+// 18. CONVERSATION — Conversas WhatsApp
+// =============================================================================
+
+model AgendaBot_Conversation {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  client_id       String?   // nullable: cliente ainda não identificado
+  phone           String    // número que originou a conversa
+
+  status          AgendaBot_ConversationStatus @default(BOT)
+  assigned_to     String?   // user_id do atendente humano
+
+  last_message_at DateTime?
+  created_at      DateTime  @default(now())
+
+  tenant          AgendaBot_Tenant  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  client          AgendaBot_Client? @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  assignee        AgendaBot_User?   @relation("ConversationAssignedTo", fields: [assigned_to], references: [id], onDelete: SetNull)
+  messages        AgendaBot_Message[]
+
+  @@index([tenant_id])
+  @@index([client_id])
+  @@index([phone])
+  @@index([status])
+  @@index([last_message_at])
+  @@map("AgendaBot_Conversation")
+}
+
+// =============================================================================
+// 19. MESSAGE — Mensagens das conversas
+// =============================================================================
+
+model AgendaBot_Message {
+  id              String    @id @default(cuid())
+  conversation_id String
+
+  direction       AgendaBot_MessageDirection
+  content         String
+  type            AgendaBot_MessageType @default(TEXT)
+
+  whatsapp_id     String?   // ID retornado pela API WhatsApp (para deduplicação)
+
+  sent_at         DateTime?
+  delivered_at    DateTime?
+  read_at         DateTime?
+  created_at      DateTime  @default(now())
+
+  conversation    AgendaBot_Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id])
+  @@index([whatsapp_id])
+  @@index([created_at])
+  @@map("AgendaBot_Message")
+}
+
+// =============================================================================
+// 20. LOYALTY CONFIG — Configuração do programa de fidelidade
+// =============================================================================
+
+model AgendaBot_LoyaltyConfig {
+  id               String  @id @default(cuid())
+  tenant_id        String  @unique
+
+  is_active        Boolean @default(false)
+  points_per_real  Decimal @default(1) @db.Decimal(8, 2) // pontos por R$ 1,00 gasto
+
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  tenant           AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("AgendaBot_LoyaltyConfig")
+}
+
+// =============================================================================
+// 21. LOYALTY REWARD — Recompensas do programa de fidelidade
+// =============================================================================
+
+model AgendaBot_LoyaltyReward {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  name             String
+  description      String?
+  points_required  Int
+
+  type             AgendaBot_LoyaltyRewardType
+  value            Decimal   @db.Decimal(10, 2) // %, R$ ou flag de brinde
+
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant           AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  redemptions      AgendaBot_LoyaltyRedemption[]
+
+  @@index([tenant_id])
+  @@index([is_active])
+  @@map("AgendaBot_LoyaltyReward")
+}
+
+// =============================================================================
+// 22. LOYALTY REDEMPTION — Resgates de recompensas
+// =============================================================================
+
+model AgendaBot_LoyaltyRedemption {
+  id              String   @id @default(cuid())
+  tenant_id       String
+  client_id       String
+  reward_id       String
+  appointment_id  String?  // agendamento vinculado ao resgate
+
+  points_used     Int
+  created_at      DateTime @default(now())
+
+  tenant          AgendaBot_Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  client          AgendaBot_Client        @relation(fields: [client_id], references: [id], onDelete: Restrict)
+  reward          AgendaBot_LoyaltyReward @relation(fields: [reward_id], references: [id], onDelete: Restrict)
+  appointment     AgendaBot_Appointment?  @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([client_id])
+  @@index([reward_id])
+  @@map("AgendaBot_LoyaltyRedemption")
+}
+
+// =============================================================================
+// 23. CAMPAIGN — Campanhas de marketing via WhatsApp
+// =============================================================================
+
+model AgendaBot_Campaign {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  name             String
+  message_template String    // suporta variáveis: {{nome}}, {{data}}, {{servico}}
+
+  status           AgendaBot_CampaignStatus @default(DRAFT)
+
+  filter_type      AgendaBot_CampaignFilterType
+  filter_value     String?   // ex: dias de inatividade, ou vazio para ALL
+
+  scheduled_at     DateTime?
+  sent_at          DateTime?
+
+  // Métricas
+  total_sent       Int @default(0)
+  total_responded  Int @default(0)
+  total_converted  Int @default(0)
+
+  created_by       String?   // user_id
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant           AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  creator          AgendaBot_User?  @relation("CampaignCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  recipients       AgendaBot_CampaignRecipient[]
+
+  @@index([tenant_id])
+  @@index([status])
+  @@index([scheduled_at])
+  @@map("AgendaBot_Campaign")
+}
+
+// =============================================================================
+// 24. CAMPAIGN RECIPIENT — Destinatários das campanhas
+// =============================================================================
+
+model AgendaBot_CampaignRecipient {
+  id           String    @id @default(cuid())
+  campaign_id  String
+  client_id    String
+  phone        String    // snapshot do número no momento do envio
+
+  status       AgendaBot_RecipientStatus @default(PENDING)
+
+  sent_at      DateTime?
+  responded_at DateTime?
+  converted_at DateTime?
+
+  campaign     AgendaBot_Campaign @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  client       AgendaBot_Client   @relation(fields: [client_id], references: [id], onDelete: Restrict)
+
+  @@unique([campaign_id, client_id])
+  @@index([campaign_id])
+  @@index([client_id])
+  @@index([status])
+  @@map("AgendaBot_CampaignRecipient")
+}
+
+// =============================================================================
+// 25. UAZAPI INSTANCE — Instâncias WhatsApp (uazapiGO) por tenant
+// =============================================================================
+
+model AgendaBot_UazapiInstance {
+  id             String    @id @default(cuid())
+  tenant_id      String
+  name           String
+  token          String    // token da instância — nunca expor via API pública
+  webhook_secret String?   // segredo HMAC para validação de payload recebido
+  status         String    @default("disconnected") // disconnected | qrcode | connected
+  phone_number   String?
+  connected_at   DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  tenant         AgendaBot_Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  flow_bots      AgendaBot_FlowBot[]
+  chatbot_config AgendaBot_ChatbotConfig?
+
+  @@index([tenant_id])
+  @@map("AgendaBot_UazapiInstance")
+}
+
+// =============================================================================
+// 26. FLOW BOT — Fluxos de automação visual por tenant
+// =============================================================================
+
+model AgendaBot_FlowBot {
+  id           String    @id @default(cuid())
+  tenant_id    String
+  instance_id  String?   // nullable: fluxo pode existir sem instância ativa
+  name         String
+  description  String?
+  is_active    Boolean   @default(false)
+  nodes        Json      // FlowNode[] serializado
+  edges        Json      // FlowEdge[] serializado
+  variables    Json      @default("{}") // variáveis de design-time: { chave: tipo }
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  deleted_at   DateTime? // soft delete
+
+  tenant       AgendaBot_Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  instance     AgendaBot_UazapiInstance?  @relation(fields: [instance_id], references: [id], onDelete: SetNull)
+  sessions     AgendaBot_BotSession[]
+
+  @@index([tenant_id])
+  @@index([is_active])
+  @@index([tenant_id, is_active])
+  @@map("AgendaBot_FlowBot")
+}
+
+// =============================================================================
+// 27. BOT SESSION — Sessão ativa de um número no fluxo
+// =============================================================================
+
+model AgendaBot_BotSession {
+  id              String    @id @default(cuid())
+  flow_bot_id     String
+  client_phone    String    // número E.164: "5511999999999"
+  current_node_id String?   // null = sessão encerrada ou não iniciada
+  variables       Json      @default("{}") // variáveis em runtime: { nome_cliente: "..." }
+  status          AgendaBot_SessionStatus @default(ACTIVE)
+  started_at      DateTime  @default(now())
+  last_message_at DateTime  @updatedAt
+
+  flow_bot        AgendaBot_FlowBot      @relation(fields: [flow_bot_id], references: [id], onDelete: Cascade)
+  executions      AgendaBot_BotExecution[]
+
+  @@index([flow_bot_id, client_phone])
+  @@index([status])
+  @@index([client_phone])
+  @@map("AgendaBot_BotSession")
+}
+
+// =============================================================================
+// 28. BOT EXECUTION — Log de cada nó executado em uma sessão
+// =============================================================================
+
+model AgendaBot_BotExecution {
+  id          String    @id @default(cuid())
+  session_id  String
+  node_id     String
+  node_type   String
+  input       Json?     // payload recebido que disparou este nó
+  output      Json?     // resposta enviada / resultado calculado
+  error       String?   // mensagem de erro se o handler falhou
+  executed_at DateTime  @default(now())
+
+  session     AgendaBot_BotSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([executed_at])
+  @@map("AgendaBot_BotExecution")
+}
