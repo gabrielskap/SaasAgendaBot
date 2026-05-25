@@ -23,6 +23,7 @@ const envSchema = z.object({
 
   UAZAPI_BASE_URL: z.string().url(),
   UAZAPI_GLOBAL_TOKEN: z.string().min(1),
+  UAZAPI_TOKEN_INSTANCE: z.string().min(1),
 })
 
 const parsed = envSchema.safeParse(process.env)

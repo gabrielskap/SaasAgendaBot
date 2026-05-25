@@ -112,6 +112,7 @@ interface MessageFlowEditorProps {
   onSave: (flowJson: string) => Promise<void>;
   initialTemplates?: Array<{ id: string; label: string; text: string }>;
   initialFlow?: { nodes: unknown[]; connections: unknown[] };
+  flowName?: string;
 }
 
 // ── Helper: get category accent color hex for a node type ────────────────────
@@ -152,7 +153,7 @@ const DEFAULT_CONNECTIONS: FlowConnection[] = [
   { id: 'conn_3', fromNodeId: 'inicio', fromPort: 'option_2', toNodeId: 'atendente', label: 'Opção 3' },
 ];
 
-export default function MessageFlowEditor({ onBack, onSave, initialTemplates, initialFlow }: MessageFlowEditorProps) {
+export default function MessageFlowEditor({ onBack, onSave, initialTemplates, initialFlow, flowName }: MessageFlowEditorProps) {
   const [nodes, setNodes] = useState<FlowNode[]>(() =>
     (initialFlow?.nodes?.length ? initialFlow.nodes as FlowNode[] : DEFAULT_NODES)
   );
@@ -488,6 +489,11 @@ export default function MessageFlowEditor({ onBack, onSave, initialTemplates, in
             <div className="flex items-center gap-2">
               <span className="p-1 bg-[#0F4C81] text-white rounded text-[10px] font-bold tracking-wide">PRO FLOV</span>
               <h2 className="text-sm font-display font-black text-white">Visual Flow Builder</h2>
+              {flowName && (
+                <span className="text-[10.5px] text-slate-300 font-semibold bg-slate-700 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                  {flowName}
+                </span>
+              )}
             </div>
             <p className="text-[10.5px] text-slate-400 font-medium">Configure as respostas arrastando nós e conexões.</p>
           </div>
