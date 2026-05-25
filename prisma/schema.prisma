@@ -25,6 +25,7 @@ enum AgendaBot_Plan {
 }
 
 enum AgendaBot_UserRole {
+  SUPER_ADMIN
   ADMIN
   MANAGER
   PROFESSIONAL
@@ -209,10 +210,10 @@ model AgendaBot_TenantHours {
 model AgendaBot_User {
   id             String    @id @default(cuid())
   tenant_id      String
+  auth_id        String?   @unique @db.Uuid // UUID do usuário no Supabase Auth
   name           String
   email          String
   phone          String?
-  password_hash  String
   avatar_url     String?
   role           AgendaBot_UserRole @default(RECEPTIONIST)
 
@@ -223,7 +224,6 @@ model AgendaBot_User {
   deleted_at     DateTime? // soft delete
 
   tenant         AgendaBot_Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  refresh_tokens AgendaBot_RefreshToken[]
   professional   AgendaBot_Professional?
 
   // Ações realizadas pelo usuário
@@ -246,21 +246,6 @@ model AgendaBot_User {
 // 4. REFRESH TOKEN — Tokens de renovação de sessão JWT
 // =============================================================================
 
-model AgendaBot_RefreshToken {
-  id          String    @id @default(cuid())
-  user_id     String
-  token_hash  String    @unique // hash SHA-256 do token real
-  expires_at  DateTime
-  revoked_at  DateTime? // null = válido
-  created_at  DateTime  @default(now())
-
-  user        AgendaBot_User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id])
-  @@index([token_hash])
-  @@index([expires_at])
-  @@map("AgendaBot_RefreshToken")
-}
 
 // =============================================================================
 // 5. PROFESSIONAL — Profissionais que realizam atendimentos

@@ -7,27 +7,29 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { 
-  BarChart3, 
-  Calendar, 
-  Users, 
-  Sliders, 
-  BrainCircuit, 
-  LogOut, 
-  DollarSign, 
-  Bell, 
-  Search, 
-  Settings, 
-  Menu, 
-  X, 
-  CheckCircle2, 
-  ShieldCheck, 
-  Flame, 
+  BarChart3,
+  Calendar,
+  Users,
+  Sliders,
+  BrainCircuit,
+  LogOut,
+  DollarSign,
+  Bell,
+  Search,
+  Settings,
+  Menu,
+  X,
+  CheckCircle2,
+  ShieldCheck,
+  Flame,
   MessageSquare,
   Award,
   ChevronDown,
   Building,
-  Smartphone
+  Smartphone,
+  Crown
 } from 'lucide-react';
+import { UserRole } from '../../types';
 
 export default function SaaSLayout() {
   const { user, tenant, logout } = useAuthStore();
@@ -56,11 +58,13 @@ export default function SaaSLayout() {
     { id: 'fidelidade',    label: 'Fidelidade & Pontos', path: '/app/fidelidade',    icon: Award,       role: ['Admin', 'Gerente'] },
     { id: 'relatorios',    label: 'Relatórios Hub',      path: '/app/relatorios',    icon: BarChart3,   role: ['Admin', 'Gerente'] },
     { id: 'configuracoes', label: 'Preferências',        path: '/app/configuracoes', icon: Settings,    role: ['Admin', 'Gerente'] },
+    { id: 'super-admin',   label: 'Super Admin',         path: '/app/super-admin',   icon: Crown,       role: ['Super Admin'] },
   ];
 
-  // Filtering modules depending on mockup user privileges
+  // Filtering modules depending on user privileges
   const visibleMenuItems = menuItems.filter(item => {
     if (!user) return false;
+    if (user.papel === UserRole.SUPER_ADMIN) return true;
     return item.role.includes(user.papel);
   });
 
@@ -90,13 +94,19 @@ export default function SaaSLayout() {
 
         {/* TENANT CARD */}
         <div className="p-4 mx-3 my-4 bg-white/5 rounded-xl border border-white/10 flex items-center gap-3">
-          <img 
-            src={tenant.logo} 
-            alt={tenant.nome} 
-            className="w-10 h-10 rounded-lg object-cover border border-white/20"
-          />
+          {tenant?.logo ? (
+            <img
+              src={tenant.logo}
+              alt={tenant.nome}
+              className="w-10 h-10 rounded-lg object-cover border border-white/20"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center border border-white/20">
+              <Crown className="w-5 h-5 text-purple-300" />
+            </div>
+          )}
           <div className="overflow-hidden">
-            <h4 className="font-display font-bold text-sm text-white truncate">{tenant.nome}</h4>
+            <h4 className="font-display font-bold text-sm text-white truncate">{tenant?.nome ?? 'Super Admin'}</h4>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-2.5 h-2.5 bg-[#00C896] rounded-full animate-pulse shrink-0"></span>
               <span className="text-[10px] text-white/70 font-mono truncate">Bot Ativo (Evolution)</span>
@@ -128,6 +138,11 @@ export default function SaaSLayout() {
                 {item.id === 'chatbot' && (
                   <span className="ml-auto bg-[#00C896]/20 border border-[#00C896]/40 text-[#00C896] text-[10px] uppercase font-mono tracking-wide px-1.5 py-0.5 rounded">
                     IA
+                  </span>
+                )}
+                {item.id === 'super-admin' && (
+                  <span className="ml-auto bg-purple-400/20 border border-purple-400/40 text-purple-300 text-[10px] uppercase font-mono tracking-wide px-1.5 py-0.5 rounded">
+                    ROOT
                   </span>
                 )}
               </button>
@@ -187,9 +202,15 @@ export default function SaaSLayout() {
       {isMobileMenuOpen && (
         <div className="md:hidden fixed inset-0 top-[60px] z-40 bg-[#0F4C81] text-white flex flex-col p-6 animate-fade-in">
           <div className="mb-6 flex items-center gap-3 pb-4 border-b border-white/10">
-            <img src={tenant.logo} alt={tenant.nome} className="w-10 h-10 rounded-lg object-cover" />
+            {tenant?.logo ? (
+              <img src={tenant.logo} alt={tenant.nome} className="w-10 h-10 rounded-lg object-cover" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
+                <Crown className="w-5 h-5 text-purple-300" />
+              </div>
+            )}
             <div>
-              <h3 className="font-bold font-display text-sm whitespace-nowrap">{tenant.nome}</h3>
+              <h3 className="font-bold font-display text-sm whitespace-nowrap">{tenant?.nome ?? 'Super Admin'}</h3>
               <span className="text-[11px] text-[#00C896] font-mono">Unidade Única (Pro Plano)</span>
             </div>
           </div>

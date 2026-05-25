@@ -4,10 +4,11 @@
  */
 
 export enum UserRole {
+  SUPER_ADMIN = 'Super Admin',
   ADMIN = 'Admin',
   GERENTE = 'Gerente',
   PROFISSIONAL = 'Profissional',
-  RECEPCIONISTA = 'Recepcionista'
+  RECEPCIONISTA = 'Recepcionista',
 }
 
 export interface User {

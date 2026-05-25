@@ -21,10 +21,19 @@ import ChatbotPage from './pages/chatbot/ChatbotPage';
 import FidelidadePage from './pages/fidelidade/FidelidadePage';
 import RelatoriosPage from './pages/relatorios/RelatoriosPage';
 import ConfiguracoesPage from './pages/configuracoes/ConfiguracoesPage';
+import SuperAdminPage from './pages/admin/SuperAdminPage';
+import { UserRole } from './types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.papel !== UserRole.SUPER_ADMIN) return <Navigate to="/app/painel" replace />;
   return <>{children}</>;
 }
 
@@ -80,6 +89,7 @@ export default function App() {
         <Route path="fidelidade"    element={<FidelidadePage />} />
         <Route path="relatorios"    element={<RelatoriosPage />} />
         <Route path="configuracoes" element={<ConfiguracoesPage />} />
+        <Route path="super-admin"   element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
       </Route>
 
       {/* Fallback */}
