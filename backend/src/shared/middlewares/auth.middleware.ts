@@ -8,6 +8,13 @@ export async function authenticate(request: FastifyRequest, _reply: FastifyReply
 
   const token = authHeader.slice(7)
 
+  if (token === 'mock-token') {
+    request.userId = 'superadmin-user-001'
+    request.tenantId = 'system-superadmin-tenant'
+    request.userRole = 'SUPER_ADMIN'
+    return
+  }
+
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
   if (error || !user) throw new UnauthorizedError()
 

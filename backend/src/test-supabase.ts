@@ -9,23 +9,51 @@ const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const supabase = createClient(supabaseUrl, supabaseServiceRole!)
 
-async function checkUndefined() {
-  console.log('--- Testing eq with undefined ---')
+async function checkDatabase() {
+  console.log('--- Testing AgendaBot_ChatbotFlows ---')
   try {
     const { data, error } = await supabase
       .from('AgendaBot_ChatbotFlows')
-      .select('id, tenant_id, name, nodes, connections, is_active, created_at, updated_at')
-      .eq('tenant_id', undefined as any)
-      .order('created_at', { ascending: true })
+      .select('*')
     
     if (error) {
-      console.error('Query returned error:', error)
+      console.error('AgendaBot_ChatbotFlows Error:', error)
     } else {
-      console.log('Query succeeded with:', data)
+      console.log('AgendaBot_ChatbotFlows Success:', data)
     }
   } catch (e: any) {
-    console.error('Query threw exception:', e.message || e)
+    console.error('AgendaBot_ChatbotFlows Exception:', e.message || e)
+  }
+
+  console.log('--- Testing AgendaBot_Tenant ---')
+  try {
+    const { data, error } = await supabase
+      .from('AgendaBot_Tenant')
+      .select('*')
+    
+    if (error) {
+      console.error('AgendaBot_Tenant Error:', error)
+    } else {
+      console.log('AgendaBot_Tenant Success:', data)
+    }
+  } catch (e: any) {
+    console.error('AgendaBot_Tenant Exception:', e.message || e)
+  }
+
+  console.log('--- Testing AgendaBot_User ---')
+  try {
+    const { data, error } = await supabase
+      .from('AgendaBot_User')
+      .select('*')
+    
+    if (error) {
+      console.error('AgendaBot_User Error:', error)
+    } else {
+      console.log('AgendaBot_User Success:', data)
+    }
+  } catch (e: any) {
+    console.error('AgendaBot_User Exception:', e.message || e)
   }
 }
 
-checkUndefined()
+checkDatabase()
