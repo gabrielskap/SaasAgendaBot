@@ -79,6 +79,10 @@ services:
           VITE_SUPABASE_URL: CHANGE_ME_SUPABASE_URL
           VITE_SUPABASE_ANON_KEY: CHANGE_ME_SUPABASE_ANON_KEY
           VITE_API_URL: https://api.CHANGE_ME_DOMAIN.com
+      # BACKEND_HOST: hostname interno do serviço api dentro da rede do EasyPanel.
+      # No EasyPanel o DNS interno resolve pelo serviceName do mesmo projeto.
+      env: |
+        BACKEND_HOST=api
       domains:
         - host: CHANGE_ME_DOMAIN.com
           port: 80
