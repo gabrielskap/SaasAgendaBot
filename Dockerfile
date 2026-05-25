@@ -26,7 +26,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Variáveis de ambiente padrão para o Nginx/envsubst
-ENV BACKEND_HOST=backend
+ENV BACKEND_HOST=api
 ENV NGINX_ENVSUBST_FILTER=BACKEND_HOST
 
 EXPOSE 80

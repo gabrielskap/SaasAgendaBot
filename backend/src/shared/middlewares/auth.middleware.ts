@@ -8,7 +8,7 @@ export async function authenticate(request: FastifyRequest, _reply: FastifyReply
 
   const token = authHeader.slice(7)
 
-  if (token === 'mock-token') {
+  if (token === 'mock-token' && process.env.NODE_ENV !== 'production') {
     request.userId = 'superadmin-user-001'
     request.tenantId = 'system-superadmin-tenant'
     request.userRole = 'SUPER_ADMIN'
