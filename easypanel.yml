@@ -1,0 +1,84 @@
+# EasyPanel project configuration
+# Docs: https://easypanel.io/docs/reference/easypanel-yml
+#
+# Como usar:
+#   1. Substitua todos os valores CHANGE_ME
+#   2. Ajuste os domínios em cada serviço
+#   3. Importe este arquivo no EasyPanel ou faça deploy via GitHub
+
+services:
+  # ── Redis (filas BullMQ) ───────────────────────────────────────────────────
+  - type: redis
+    data:
+      projectName: agendabot
+      serviceName: cache
+      password: CHANGE_ME_REDIS_PASSWORD
+
+  # ── Backend Fastify ────────────────────────────────────────────────────────
+  - type: app
+    data:
+      projectName: agendabot
+      serviceName: api
+      source:
+        type: github
+        repo: CHANGE_ME_OWNER/CHANGE_ME_REPO
+        ref: main
+        autoDeploy: false
+      build:
+        type: dockerfile
+        file: backend/Dockerfile
+        buildPath: /backend
+      env: |
+        NODE_ENV=production
+        HOST=0.0.0.0
+        PORT=3333
+
+        # Supabase — use a SERVICE_ROLE key (nunca a anon key aqui)
+        SUPABASE_URL=CHANGE_ME_SUPABASE_URL
+        SUPABASE_SERVICE_ROLE_KEY=CHANGE_ME_SUPABASE_SERVICE_ROLE_KEY
+
+        # Redis interno do EasyPanel — hostname = projectName_serviceName
+        REDIS_HOST=agendabot_cache
+        REDIS_PORT=6379
+        REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
+
+        # JWT — mínimo 32 caracteres, strings aleatórias
+        JWT_SECRET=CHANGE_ME_32_CHARS_MIN_RANDOM_STRING
+        JWT_REFRESH_SECRET=CHANGE_ME_32_CHARS_MIN_OTHER_RANDOM_STRING
+        JWT_ACCESS_EXPIRES_IN=15m
+        JWT_REFRESH_EXPIRES_DAYS=7
+
+        # URLs públicas (ajuste para seus domínios)
+        APP_URL=https://api.CHANGE_ME_DOMAIN.com
+        FRONTEND_URL=https://CHANGE_ME_DOMAIN.com
+
+        # uazapi (WhatsApp)
+        UAZAPI_BASE_URL=https://quantumtecnologia.uazapi.com
+        UAZAPI_GLOBAL_TOKEN=CHANGE_ME_UAZAPI_GLOBAL_TOKEN
+        UAZAPI_TOKEN_INSTANCE=CHANGE_ME_UAZAPI_INSTANCE_TOKEN
+      domains:
+        - host: api.CHANGE_ME_DOMAIN.com
+          port: 3333
+
+  # ── Frontend React/Vite (Nginx) ────────────────────────────────────────────
+  - type: app
+    data:
+      projectName: agendabot
+      serviceName: web
+      source:
+        type: github
+        repo: CHANGE_ME_OWNER/CHANGE_ME_REPO
+        ref: main
+        autoDeploy: false
+      build:
+        type: dockerfile
+        file: Dockerfile
+        buildPath: /
+        # VITE_ vars são baked no bundle no momento do build
+        buildArgs:
+          VITE_SUPABASE_URL: CHANGE_ME_SUPABASE_URL
+          VITE_SUPABASE_ANON_KEY: CHANGE_ME_SUPABASE_ANON_KEY
+          VITE_API_URL: https://api.CHANGE_ME_DOMAIN.com
+      domains:
+        - host: CHANGE_ME_DOMAIN.com
+          port: 80

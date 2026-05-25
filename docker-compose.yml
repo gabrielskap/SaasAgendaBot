@@ -1,0 +1,62 @@
+version: '3.9'
+
+# Uso local apenas — para produção use easypanel.yml
+# Pré-requisito: copie os .env.example para .env em ambas as pastas
+
+services:
+  # ── Cache / Filas ─────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: agendabot_cache
+    restart: unless-stopped
+    command: redis-server --requirepass redis_secret --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (Fastify) ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agendabot_api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      REDIS_HOST: agendabot_cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_secret
+    ports:
+      - "3333:3333"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Frontend (Vite → Nginx) ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3333}
+    container_name: agendabot_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:
