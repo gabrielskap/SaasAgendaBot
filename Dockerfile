@@ -25,6 +25,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Usa o mecanismo nativo de templates do nginx Docker para substituir ${BACKEND_HOST}
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
+# Variáveis de ambiente padrão para o Nginx/envsubst
+ENV BACKEND_HOST=backend
+ENV NGINX_ENVSUBST_FILTER=BACKEND_HOST
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
