@@ -16,7 +16,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send(flow ?? { nodes: [], connections: [] })
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flow GET failed')
-      return reply.status(500).send({ error: 'Falha ao carregar o fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao carregar o fluxo.', message: err.message, details: err })
     }
   })
 
@@ -33,7 +33,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true })
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flow PUT failed')
-      return reply.status(500).send({ error: 'Falha ao salvar o fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao salvar o fluxo.', message: err.message, details: err })
     }
   })
 
@@ -46,7 +46,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send(flows)
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flows GET failed')
-      return reply.status(500).send({ error: 'Falha ao listar fluxos.' })
+      return reply.status(500).send({ error: 'Falha ao listar fluxos.', message: err.message, details: err })
     }
   })
 
@@ -60,7 +60,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.status(201).send(flow)
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flows POST failed')
-      return reply.status(500).send({ error: 'Falha ao criar fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao criar fluxo.', message: err.message, details: err })
     }
   })
 
@@ -74,7 +74,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send(flow)
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flows/:flowId GET failed')
-      return reply.status(500).send({ error: 'Falha ao carregar fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao carregar fluxo.', message: err.message, details: err })
     }
   })
 
@@ -98,7 +98,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true })
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flows/:flowId PUT failed')
-      return reply.status(500).send({ error: 'Falha ao atualizar fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao atualizar fluxo.', message: err.message, details: err })
     }
   })
 
@@ -111,7 +111,7 @@ export async function chatbotRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true })
     } catch (err: any) {
       req.log.error({ err }, 'chatbot/flows/:flowId DELETE failed')
-      return reply.status(500).send({ error: 'Falha ao excluir fluxo.' })
+      return reply.status(500).send({ error: 'Falha ao excluir fluxo.', message: err.message, details: err })
     }
   })
 }
