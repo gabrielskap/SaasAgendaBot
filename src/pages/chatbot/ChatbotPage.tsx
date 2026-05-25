@@ -89,7 +89,13 @@ export default function ChatbotPage() {
     if (!tenant?.id) return;
     setLoadingChats(true);
     fetchConversations(tenant.id)
-      .then(data => setChats(data))
+      .then(data => {
+        if (Array.isArray(data)) {
+          setChats(data);
+        } else {
+          setChats([]);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingChats(false));
   }, [tenant?.id]);
@@ -98,7 +104,13 @@ export default function ChatbotPage() {
     if (!tenant?.id) return;
     setFlowsLoading(true);
     api.get('/chatbot/flows')
-      .then(({ data }) => setFlows(data))
+      .then(({ data }) => {
+        if (Array.isArray(data)) {
+          setFlows(data);
+        } else {
+          setFlows([]);
+        }
+      })
       .catch(() => {})
       .finally(() => setFlowsLoading(false));
   }, [tenant?.id]);
