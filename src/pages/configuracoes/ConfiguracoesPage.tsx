@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   CreditCard, 
@@ -19,25 +19,85 @@ import {
   Check,
   ChevronRight
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { supabase } from '../../lib/supabase';
+
+interface TeamMember { id: string; nome: string; email: string; role: string }
 
 export default function ConfiguracoesPage() {
-  const [empresaNome, setEmpresaNome] = useState('Barbearia Navalha de Ouro Ltda');
-  const [empresaCnpj, setEmpresaCnpj] = useState('42.128.540/0001-92');
-  const [empresaEnd, setEmpresaEnd] = useState('Av. Paulista, 1000 - Bela Vista, São Paulo - SP');
-  
-  // Notification States
-  const [notifySms, setNotifySms] = useState(true);
-  const [notifyEmail, setNotifyEmail] = useState(false);
-  const [lockInactivity, setLockInactivity] = useState(true);
+  const { tenant } = useAuthStore();
+  const [empresaNome, setEmpresaNome] = useState('');
+  const [empresaCnpj, setEmpresaCnpj] = useState('');
+  const [empresaEnd, setEmpresaEnd] = useState('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const [notifySms, setNotifySms] = useState(true);
+  const [lockInactivity, setLockInactivity] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState('');
+
+  // Initialize form from tenant data
+  useEffect(() => {
+    if (!tenant) return;
+    setEmpresaNome(tenant.nome ?? '');
+    setEmpresaCnpj(tenant.cnpj ?? '');
+    setEmpresaEnd(tenant.endereco ?? '');
+  }, [tenant?.id]);
+
+  // Load team members
+  useEffect(() => {
+    if (!tenant?.id) return;
+    supabase
+      .from('AgendaBot_User')
+      .select('id, name, email, role')
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        setTeamMembers((data ?? []).map((u: any) => ({
+          id: u.id,
+          nome: u.name,
+          email: u.email,
+          role: u.role,
+        })));
+      });
+  }, [tenant?.id]);
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('As configurações gerais do seu estabelecimento AgendaBot foram salvas com sucesso!');
+    if (!tenant?.id) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase
+        .from('AgendaBot_Tenant')
+        .update({ name: empresaNome, cnpj: empresaCnpj, address: empresaEnd })
+        .eq('id', tenant.id);
+      if (err) throw err;
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-semibold">
+          Erro: {error}
+        </div>
+      )}
+      {saved && (
+        <div className="p-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-2">
+          <Check className="w-4 h-4" /> Configurações salvas com sucesso!
+        </div>
+      )}
+
       {/* TITLE GREETINGS */}
       <div className="pb-5 border-b border-[#E2E8F0]">
         <h2 className="text-xl font-display font-black text-[#1A1F2E]">Configurações da Conta SaaS</h2>
@@ -134,9 +194,10 @@ export default function ConfiguracoesPage() {
           <div className="pt-4 border-t border-[#E2E8F0] flex justify-end gap-2">
             <button
               type="submit"
-              className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold px-6 py-2.5 rounded-lg text-xs uppercase tracking-wider cursor-pointer"
+              disabled={saving}
+              className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-lg text-xs uppercase tracking-wider cursor-pointer"
             >
-              Salvar Parâmetros Gerais
+              {saving ? 'Salvando...' : 'Salvar Parâmetros Gerais'}
             </button>
           </div>
 
@@ -192,7 +253,9 @@ export default function ConfiguracoesPage() {
                   <input
                     type="email"
                     placeholder="recepcao@email.com"
-                    className="flex-grow px-2 px-3.5 border border-[#E2E8F0] rounded-lg bg-[#F8FAFC]"
+                    className="flex-grow px-3.5 py-2 border border-[#E2E8F0] rounded-lg bg-[#F8FAFC]"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
                   />
                   <button
                     type="button"
@@ -204,24 +267,20 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
 
-              {/* LIST OF CURRENT OUTGOING ACCESS LOGS */}
+              {/* CURRENT TEAM MEMBERS */}
               <div className="space-y-2">
-                <span className="text-[9px] uppercase font-bold text-[#64748B] tracking-wider block">Lista de Convites Ativos:</span>
-                
-                {[
-                  { email: 'auxiliar.joao@email.com', cargo: 'Recepção', status: 'Pendente' },
-                  { email: 'barber.caio@gmail.com', cargo: 'Profissional', status: 'Aceito' }
-                ].map((inv) => (
-                  <div key={inv.email} className="flex justify-between items-center p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
+                <span className="text-[9px] uppercase font-bold text-[#64748B] tracking-wider block">Equipe com Acesso:</span>
+                {teamMembers.length === 0 && (
+                  <p className="text-[10px] text-[#64748B] italic">Nenhum colaborador cadastrado.</p>
+                )}
+                {teamMembers.map((m) => (
+                  <div key={m.id} className="flex justify-between items-center p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
                     <div className="text-left">
-                      <p className="font-bold text-[#1A1F2E] truncate max-w-[140px]">{inv.email}</p>
-                      <span className="text-[9px] text-[#64748B] block mt-0.5">{inv.cargo}</span>
+                      <p className="font-bold text-[#1A1F2E] truncate max-w-[140px]">{m.nome}</p>
+                      <span className="text-[9px] text-[#64748B] block mt-0.5">{m.email}</span>
                     </div>
-
-                    <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-sm ${
-                      inv.status === 'Aceito' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
-                    }`}>
-                      {inv.status}
+                    <span className="text-[9px] uppercase font-bold px-1.5 rounded-sm bg-emerald-50 text-emerald-800">
+                      {m.role}
                     </span>
                   </div>
                 ))}

@@ -6,10 +6,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
-    "db:studio": "prisma studio --schema=./prisma/schema.prisma"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
@@ -18,7 +15,7 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^4.0.1",
-    "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.106.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.4.0",
     "dayjs": "^1.11.13",
@@ -32,7 +29,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.0.0",
-    "prisma": "^5.22.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

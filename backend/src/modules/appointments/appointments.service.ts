@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { prisma } from '../../config/database'
+import { supabaseAdmin } from '../../config/database'
 import { AppError, NotFoundError } from '../../shared/errors/app-error'
 import { AppointmentsRepository } from './appointments.repository'
 import type {
@@ -39,17 +39,39 @@ export class AppointmentsService {
   }
 
   async create(tenantId: string, userId: string | undefined, input: CreateAppointmentInput) {
-    const [service, professional, client] = await Promise.all([
-      prisma.agendaBot_Service.findFirst({
-        where: { id: input.service_id, tenant_id: tenantId, is_active: true, deleted_at: null },
-      }),
-      prisma.agendaBot_Professional.findFirst({
-        where: { id: input.professional_id, tenant_id: tenantId, is_active: true, deleted_at: null },
-      }),
-      prisma.agendaBot_Client.findFirst({
-        where: { id: input.client_id, tenant_id: tenantId, deleted_at: null },
-      }),
+    const [serviceResult, professionalResult, clientResult] = await Promise.all([
+      supabaseAdmin
+        .from('AgendaBot_Service')
+        .select('*')
+        .eq('id', input.service_id)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('AgendaBot_Professional')
+        .select('*')
+        .eq('id', input.professional_id)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('AgendaBot_Client')
+        .select('*')
+        .eq('id', input.client_id)
+        .eq('tenant_id', tenantId)
+        .is('deleted_at', null)
+        .maybeSingle(),
     ])
+
+    if (serviceResult.error) throw serviceResult.error
+    if (professionalResult.error) throw professionalResult.error
+    if (clientResult.error) throw clientResult.error
+
+    const service = serviceResult.data
+    const professional = professionalResult.data
+    const client = clientResult.data
 
     if (!service) throw new NotFoundError('Service')
     if (!professional) throw new NotFoundError('Professional')
@@ -124,18 +146,37 @@ export class AppointmentsService {
   }
 
   async checkAvailability(tenantId: string, query: AvailabilityQuery) {
-    const [service, professional] = await Promise.all([
-      prisma.agendaBot_Service.findFirst({
-        where: { id: query.service_id, tenant_id: tenantId, is_active: true },
-      }),
-      prisma.agendaBot_Professional.findFirst({
-        where: { id: query.professional_id, tenant_id: tenantId, is_active: true },
-        include: {
-          hours: true,
-          time_off: { where: { start_date: { lte: new Date(query.date) }, end_date: { gte: new Date(query.date) } } },
-        },
-      }),
+    const [serviceResult, professionalResult, timeOffResult] = await Promise.all([
+      supabaseAdmin
+        .from('AgendaBot_Service')
+        .select('duration_minutes')
+        .eq('id', query.service_id)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('AgendaBot_Professional')
+        .select('*, hours:AgendaBot_ProfessionalHours(*)')
+        .eq('id', query.professional_id)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('AgendaBot_ProfessionalTimeOff')
+        .select('*')
+        .eq('professional_id', query.professional_id)
+        .lte('start_date', query.date)
+        .gte('end_date', query.date),
     ])
+
+    if (serviceResult.error) throw serviceResult.error
+    if (professionalResult.error) throw professionalResult.error
+    if (timeOffResult.error) throw timeOffResult.error
+
+    const service = serviceResult.data
+    const professional = professionalResult.data
+      ? { ...professionalResult.data, time_off: timeOffResult.data ?? [] }
+      : null
 
     if (!service) throw new NotFoundError('Service')
     if (!professional) throw new NotFoundError('Professional')
@@ -143,7 +184,7 @@ export class AppointmentsService {
     if (professional.time_off.length > 0) return { available_slots: [] }
 
     const dayOfWeek = dayjs(query.date).day()
-    const workHours = professional.hours.find((h) => h.day_of_week === dayOfWeek)
+    const workHours = (professional as any).hours?.find((h: any) => h.day_of_week === dayOfWeek)
     if (!workHours || workHours.is_day_off) return { available_slots: [] }
 
     const busySlots = await this.repo.findByProfessionalOnDate(query.professional_id, query.date)

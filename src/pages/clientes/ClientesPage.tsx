@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Search, 
@@ -21,16 +21,30 @@ import {
   AlertTriangle,
   X
 } from 'lucide-react';
-import { MOCK_CLIENTS, MOCK_CHATS } from '../../constants/mockData';
+import { useAuthStore } from '../../store/authStore';
+import { fetchClients, createClient } from '../../services/supabaseService';
 import { Cliente } from '../../types';
 
 export default function ClientesPage() {
-  const [clients, setClients] = useState<Cliente[]>(MOCK_CLIENTS);
+  const { tenant } = useAuthStore();
+  const [clients, setClients] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'todos' | 'vips' | 'inativos'>('todos');
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [profileTab, setProfileTab] = useState<'geral' | 'historico' | 'comunicacoes'>('geral');
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
+
+  useEffect(() => {
+    if (!tenant?.id) return;
+    setLoading(true);
+    fetchClients(tenant.id)
+      .then(data => setClients(data))
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tenant?.id]);
 
   // Form States for New Client
   const [newClientName, setNewClientName] = useState('');
@@ -51,40 +65,39 @@ export default function ClientesPage() {
     return matchesSearch;
   });
 
-  // Handle client creation form submission
-  const handleAddNewClient = (e: React.FormEvent) => {
+  const handleAddNewClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClientName || !newClientPhone) return;
-
-    const freshClient: Cliente = {
-      id: `c-added-${Date.now()}`,
-      nome: newClientName,
-      telefone: newClientPhone,
-      email: newClientEmail || 'contato@client.com',
-      totalVisitas: 0,
-      ultimoAgendamento: 'Sem agendamentos',
-      valorTotalGasto: 0,
-      status: 'Ativo',
-      vip: false,
-      observacoes: newClientNotes,
-      dataCadastro: '2026-05-20',
-      servicosFavoritos: [],
-      profissionalPreferido: 'Não definido'
-    };
-
-    setClients([freshClient, ...clients]);
-    setIsNewClientOpen(false);
-
-    // Reset Form
-    setNewClientName('');
-    setNewClientPhone('');
-    setNewClientEmail('');
-    setNewClientNotes('');
+    if (!newClientName || !newClientPhone || !tenant?.id) return;
+    setSaving(true);
+    try {
+      const created = await createClient(tenant.id, {
+        nome: newClientName,
+        telefone: newClientPhone,
+        email: newClientEmail,
+        observacoes: newClientNotes,
+      });
+      setClients(prev => [created, ...prev]);
+      setIsNewClientOpen(false);
+      setNewClientName('');
+      setNewClientPhone('');
+      setNewClientEmail('');
+      setNewClientNotes('');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-semibold">
+          Erro ao carregar clientes: {error}
+        </div>
+      )}
+
       {/* HEADER BAR ACTIONS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-[#E2E8F0]">
         <div>
@@ -159,7 +172,14 @@ export default function ClientesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0] font-medium text-[#1A1F2E]">
-                {filteredClients.map((c) => (
+                {loading && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-xs text-[#64748B] font-medium font-sans">
+                      Carregando clientes...
+                    </td>
+                  </tr>
+                )}
+                {!loading && filteredClients.map((c) => (
                   <tr 
                     key={c.id}
                     onClick={() => {
@@ -204,7 +224,7 @@ export default function ClientesPage() {
                     </td>
                   </tr>
                 ))}
-                {filteredClients.length === 0 && (
+                {!loading && filteredClients.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-xs text-[#64748B] font-medium font-sans">
                       Nenhum cliente atende aos critérios descritos.
@@ -426,9 +446,10 @@ export default function ClientesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold px-5 py-2 rounded-lg font-bold uppercase tracking-wider text-[11px]"
+                  disabled={saving}
+                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-bold px-5 py-2 rounded-lg uppercase tracking-wider text-[11px]"
                 >
-                  Cadastrar Cliente
+                  {saving ? 'Salvando...' : 'Cadastrar Cliente'}
                 </button>
               </div>
 

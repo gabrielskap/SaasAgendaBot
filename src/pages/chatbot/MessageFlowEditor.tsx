@@ -109,8 +109,9 @@ interface FlowConnection {
 
 interface MessageFlowEditorProps {
   onBack: () => void;
-  onSave: (flowJson: string) => void;
+  onSave: (flowJson: string) => Promise<void>;
   initialTemplates?: Array<{ id: string; label: string; text: string }>;
+  initialFlow?: { nodes: unknown[]; connections: unknown[] };
 }
 
 // ── Helper: get category accent color hex for a node type ────────────────────
@@ -122,35 +123,43 @@ function getNodeAccentColor(type: FlowNodeType): string {
   return CATEGORY_CONFIG.find(c => c.key === def.category)?.borderColor ?? '#38bdf8';
 }
 
-export default function MessageFlowEditor({ onBack, onSave, initialTemplates }: MessageFlowEditorProps) {
-  const [nodes, setNodes] = useState<FlowNode[]>(() => ([
-    {
-      id: 'inicio', type: 'inicio', title: 'Boas-vindas (Início)',
-      text: 'Olá, {nome_cliente}! 🤖 Seja bem-vindo à Barbearia Navalha de Ouro.\n Como posso te ajudar hoje?\n\n1. Agendar novo horário\n2. Ver nossos serviços\n3. Falar com Atendente',
-      x: 80, y: 200, options: ['Agendar Horário', 'Ver Serviços', 'Falar com Atendente'], delaySeconds: 1
-    },
-    {
-      id: 'agendar', type: 'texto', title: 'Agendar Horário',
-      text: 'Excelente! Vamos receber seu agendamento. Digite a data e horário desejados ou confirme no link a seguir: barber.com/agendar 🚀',
-      x: 480, y: 120, options: ['Confirmar', 'Voltar ao início'], delaySeconds: 1
-    },
-    {
-      id: 'servicos', type: 'pergunta', title: 'Escolher Serviço',
-      text: 'Conheça nossos principais serviços:\n💈 Corte Degradê - R$ 45\n🧔 Barba Completa - R$ 35\n🔥 Combo Premium - R$ 75',
-      x: 480, y: 350, options: ['Agendar Combo', 'Voltar'], delaySeconds: 1
-    },
-    {
-      id: 'atendente', type: 'texto', title: 'Transbordo Humano',
-      text: 'Encaminhando seu contato para nosso atendimento humano de plantão. Aguarde 1 minuto por favor...',
-      x: 480, y: 600, options: [], delaySeconds: 2
-    }
-  ]));
+const DEFAULT_NODES: FlowNode[] = [
+  {
+    id: 'inicio', type: 'inicio', title: 'Boas-vindas (Início)',
+    text: 'Olá, {nome_cliente}! 🤖 Seja bem-vindo à Barbearia Navalha de Ouro.\n Como posso te ajudar hoje?\n\n1. Agendar novo horário\n2. Ver nossos serviços\n3. Falar com Atendente',
+    x: 80, y: 200, options: ['Agendar Horário', 'Ver Serviços', 'Falar com Atendente'], delaySeconds: 1
+  },
+  {
+    id: 'agendar', type: 'texto', title: 'Agendar Horário',
+    text: 'Excelente! Vamos receber seu agendamento. Digite a data e horário desejados ou confirme no link a seguir: barber.com/agendar 🚀',
+    x: 480, y: 120, options: ['Confirmar', 'Voltar ao início'], delaySeconds: 1
+  },
+  {
+    id: 'servicos', type: 'pergunta', title: 'Escolher Serviço',
+    text: 'Conheça nossos principais serviços:\n💈 Corte Degradê - R$ 45\n🧔 Barba Completa - R$ 35\n🔥 Combo Premium - R$ 75',
+    x: 480, y: 350, options: ['Agendar Combo', 'Voltar'], delaySeconds: 1
+  },
+  {
+    id: 'atendente', type: 'texto', title: 'Transbordo Humano',
+    text: 'Encaminhando seu contato para nosso atendimento humano de plantão. Aguarde 1 minuto por favor...',
+    x: 480, y: 600, options: [], delaySeconds: 2
+  }
+];
 
-  const [connections, setConnections] = useState<FlowConnection[]>([
-    { id: 'conn_1', fromNodeId: 'inicio', fromPort: 'option_0', toNodeId: 'agendar',   label: 'Opção 1' },
-    { id: 'conn_2', fromNodeId: 'inicio', fromPort: 'option_1', toNodeId: 'servicos',  label: 'Opção 2' },
-    { id: 'conn_3', fromNodeId: 'inicio', fromPort: 'option_2', toNodeId: 'atendente', label: 'Opção 3' }
-  ]);
+const DEFAULT_CONNECTIONS: FlowConnection[] = [
+  { id: 'conn_1', fromNodeId: 'inicio', fromPort: 'option_0', toNodeId: 'agendar',   label: 'Opção 1' },
+  { id: 'conn_2', fromNodeId: 'inicio', fromPort: 'option_1', toNodeId: 'servicos',  label: 'Opção 2' },
+  { id: 'conn_3', fromNodeId: 'inicio', fromPort: 'option_2', toNodeId: 'atendente', label: 'Opção 3' },
+];
+
+export default function MessageFlowEditor({ onBack, onSave, initialTemplates, initialFlow }: MessageFlowEditorProps) {
+  const [nodes, setNodes] = useState<FlowNode[]>(() =>
+    (initialFlow?.nodes?.length ? initialFlow.nodes as FlowNode[] : DEFAULT_NODES)
+  );
+
+  const [connections, setConnections] = useState<FlowConnection[]>(() =>
+    (initialFlow?.connections?.length ? initialFlow.connections as FlowConnection[] : DEFAULT_CONNECTIONS)
+  );
 
   const [variables, setVariables] = useState([
     '{nome_cliente}', '{horario}', '{data}', '{profissional}',
@@ -192,7 +201,7 @@ export default function MessageFlowEditor({ onBack, onSave, initialTemplates }: 
   const [simActiveNodeId, setSimActiveNodeId] = useState<string | null>(null);
 
   // Save status + toast
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const isFirstRender = useRef(true);
 
@@ -486,9 +495,9 @@ export default function MessageFlowEditor({ onBack, onSave, initialTemplates }: 
 
         <div className="flex items-center gap-2.5">
           {/* Save status indicator */}
-          <div className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors duration-300 ${saveStatus === 'saved' ? 'text-[#00C896]' : 'text-amber-500'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${saveStatus === 'saved' ? 'bg-[#00C896]' : 'bg-amber-500 animate-pulse'}`} />
-            {saveStatus === 'saved' ? 'Salvo' : 'Não salvo'}
+          <div className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors duration-300 ${saveStatus === 'saved' ? 'text-[#00C896]' : saveStatus === 'saving' ? 'text-sky-400' : 'text-amber-500'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${saveStatus === 'saved' ? 'bg-[#00C896]' : saveStatus === 'saving' ? 'bg-sky-400 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+            {saveStatus === 'saved' ? 'Salvo' : saveStatus === 'saving' ? 'Salvando…' : 'Não salvo'}
           </div>
 
           {/* Ghost: Auto-organizar */}
@@ -512,15 +521,22 @@ export default function MessageFlowEditor({ onBack, onSave, initialTemplates }: 
 
           {/* Primary: Salvar */}
           <button
-            onClick={() => {
-              onSave(JSON.stringify({ nodes, connections }));
-              setSaveStatus('saved');
-              showToast('Fluxo salvo com sucesso!');
+            disabled={saveStatus === 'saving'}
+            onClick={async () => {
+              setSaveStatus('saving');
+              try {
+                await onSave(JSON.stringify({ nodes, connections }));
+                setSaveStatus('saved');
+                showToast('Fluxo salvo com sucesso!');
+              } catch {
+                setSaveStatus('unsaved');
+                showToast('Erro ao salvar. Tente novamente.');
+              }
             }}
-            className="px-3.5 py-1.5 rounded-lg bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-black text-[11px] flex items-center gap-1.5 shadow-sm transition-colors duration-150 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0F4C81]/60"
+            className="px-3.5 py-1.5 rounded-lg bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-black text-[11px] flex items-center gap-1.5 shadow-sm transition-colors duration-150 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0F4C81]/60"
           >
             <Save className="w-3.5 h-3.5" />
-            Salvar Fluxo
+            {saveStatus === 'saving' ? 'Salvando…' : 'Salvar Fluxo'}
           </button>
 
           <button

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { 
@@ -30,6 +30,11 @@ import {
   Crown
 } from 'lucide-react';
 import { UserRole } from '../../types';
+import {
+  fetchNotifications,
+  markNotificationsRead,
+  type Notification,
+} from '../../services/supabaseService';
 
 export default function SaaSLayout() {
   const { user, tenant, logout } = useAuthStore();
@@ -40,12 +45,14 @@ export default function SaaSLayout() {
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
-  // Unread status mocks
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'Carlos agendou Combo via WhatsApp', time: 'Há 5m', read: false },
-    { id: 2, text: 'Dra. Beatriz concluiu atendimento de Mariana', time: 'Há 12m', read: false },
-    { id: 3, text: 'Alerta: Cliente Roberto solicitou cancelamento', time: 'Há 45m', read: true },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (!tenant?.id) return;
+    fetchNotifications(tenant.id)
+      .then(data => setNotifications(data))
+      .catch(() => {}); // non-critical, fail silently
+  }, [tenant?.id]);
 
   const menuItems = [
     { id: 'dashboard',     label: 'Painel Geral',       path: '/app/painel',        icon: BarChart3,   role: ['Admin', 'Gerente'] },
@@ -71,7 +78,8 @@ export default function SaaSLayout() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleMarkAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    if (tenant?.id) markNotificationsRead(tenant.id).catch(() => {});
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   return (

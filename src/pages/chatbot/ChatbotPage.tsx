@@ -3,46 +3,141 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BrainCircuit,
   QrCode,
-  Network
+  Network,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
-import { MOCK_CHATS } from '../../constants/mockData';
+import { useAuthStore } from '../../store/authStore';
+import { fetchConversations, updateConversationStatus } from '../../services/supabaseService';
+import { ConversaChat } from '../../types';
 import MessageFlowEditor from './MessageFlowEditor';
+import { api } from '../../services/api';
+
+type TestStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export default function ChatbotPage() {
+  const { tenant } = useAuthStore();
   const [botActive, setBotActive] = useState(true);
-  const [connectedNum] = useState('(11) 98765-4321');
-  const [chats, setChats] = useState(MOCK_CHATS);
+  const [connectedNum, setConnectedNum] = useState('');
+  const [chats, setChats] = useState<ConversaChat[]>([]);
+  const [loadingChats, setLoadingChats] = useState(true);
   const [showFlowEditor, setShowFlowEditor] = useState(false);
+  const [savedFlow, setSavedFlow] = useState<{ nodes: unknown[]; connections: unknown[] } | null>(null);
+  const [flowLoading, setFlowLoading] = useState(false);
+  const [testStatus, setTestStatus] = useState<TestStatus>('idle');
+  const [testMessage, setTestMessage] = useState('');
 
-  const handleToggleHandoff = (chatId: string) => {
-    setChats(chats.map((c) => {
-      if (c.id === chatId) {
-        const nextStatus = c.status === 'bot' ? 'humano' : 'bot';
+  useEffect(() => {
+    if (!tenant?.id) return;
+    setLoadingChats(true);
+    fetchConversations(tenant.id)
+      .then(data => setChats(data))
+      .catch(() => {})
+      .finally(() => setLoadingChats(false));
+  }, [tenant?.id]);
+
+  const handleTestConnection = async () => {
+    setTestStatus('loading');
+    setTestMessage('');
+    try {
+      const res = await fetch('/api/whatsapp/status');
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTestStatus('error');
+        setTestMessage(data.error ?? data.message ?? `Erro ${res.status} ao verificar conexão.`);
+        return;
+      }
+
+      // Backend format: { connected, phone }
+      // Raw UAZAPI format: [{ instance: { state, owner } }]
+      let connected = false;
+      let phone = '';
+
+      if (typeof data.connected === 'boolean') {
+        connected = data.connected;
+        phone = data.phone ?? '';
+      } else if (Array.isArray(data) && data.length > 0) {
+        const inst = data[0];
+        const state = inst?.instance?.state ?? inst?.state;
+        connected = state === 'open';
+        phone = inst?.instance?.owner ?? inst?.owner ?? '';
+      }
+
+      if (connected) {
+        setTestStatus('success');
+        setTestMessage(phone ? `Conectado · ${phone}` : 'Instância conectada com sucesso.');
+        if (phone) setConnectedNum(phone);
+      } else {
+        setTestStatus('error');
+        setTestMessage('Instância desconectada ou inativa.');
+      }
+    } catch {
+      setTestStatus('error');
+      setTestMessage('Não foi possível alcançar o servidor.');
+    }
+  };
+
+  const handleToggleHandoff = async (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat || !tenant?.id) return;
+    const nextStatus = chat.status === 'bot' ? 'humano' : 'bot';
+    try {
+      await updateConversationStatus(chatId, tenant.id, nextStatus);
+      const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setChats(prev => prev.map(c => {
+        if (c.id !== chatId) return c;
         return {
           ...c,
           status: nextStatus as any,
           mensagens: [
             ...c.mensagens,
-            { remetente: 'bot', texto: nextStatus === 'humano' ? 'Atendimento transferido para operador humano.' : 'O Chatbot reassumiu o controle da conversa.', timestamp: '15:16' }
-          ]
+            {
+              remetente: 'bot' as const,
+              texto: nextStatus === 'humano'
+                ? 'Atendimento transferido para operador humano.'
+                : 'O Chatbot reassumiu o controle da conversa.',
+              timestamp: now,
+            },
+          ],
         };
-      }
-      return c;
-    }));
+      }));
+    } catch {
+      // non-critical
+    }
+  };
+
+  const handleOpenFlowEditor = async () => {
+    if (!tenant?.id) return;
+    setFlowLoading(true);
+    try {
+      const { data } = await api.get('/chatbot/flow');
+      setSavedFlow(data?.nodes?.length ? data : null);
+    } catch {
+      setSavedFlow(null);
+    } finally {
+      setFlowLoading(false);
+      setShowFlowEditor(true);
+    }
+  };
+
+  const handleSaveFlow = async (flowJson: string): Promise<void> => {
+    const parsed = JSON.parse(flowJson);
+    await api.put('/chatbot/flow', parsed);
+    setSavedFlow(parsed);
   };
 
   if (showFlowEditor) {
     return (
       <MessageFlowEditor
         onBack={() => setShowFlowEditor(false)}
-        onSave={(flowJson) => {
-          console.log('Saved Flow structure:', flowJson);
-          setShowFlowEditor(false);
-        }}
+        onSave={handleSaveFlow}
+        initialFlow={savedFlow ?? undefined}
       />
     );
   }
@@ -88,13 +183,34 @@ export default function ChatbotPage() {
           </div>
           <div className="space-y-2">
             <button
-              onClick={() => alert('Sua instância de WhatsApp já se encontra fully synced no ambiente sandbox.')}
-              className="w-full bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold py-2 rounded-lg text-[10.5px] uppercase tracking-wide text-center block cursor-pointer"
+              onClick={handleTestConnection}
+              disabled={testStatus === 'loading'}
+              className="w-full bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-bold py-2 rounded-lg text-[10.5px] uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
             >
+              {testStatus === 'loading' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : null}
               Testar Conexão API
             </button>
+
+            {testStatus !== 'idle' && testStatus !== 'loading' && (
+              <div className={`flex items-start gap-1.5 rounded-lg px-3 py-2 text-[10px] font-semibold ${
+                testStatus === 'success'
+                  ? 'bg-[#00C896]/10 text-[#00926d]'
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                {testStatus === 'success'
+                  ? <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  : <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                <span>{testMessage}</span>
+              </div>
+            )}
+
             <button
-              onClick={() => alert('Parando conexão... Sincronize um novo número de telefone relendo o QR Code.')}
+              onClick={() => {
+                setTestStatus('idle');
+                setTestMessage('');
+              }}
               className="w-full border border-red-200 text-red-600 hover:bg-red-50 font-bold py-2 rounded-lg text-[10.5px] uppercase tracking-wide text-center block cursor-pointer"
             >
               Desconectar WhatsApp
@@ -114,10 +230,11 @@ export default function ChatbotPage() {
             </p>
           </div>
           <button
-            onClick={() => setShowFlowEditor(true)}
-            className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-black py-4 px-12 rounded-xl text-sm uppercase tracking-wider flex items-center gap-3 shadow-lg transition-all cursor-pointer hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+            onClick={handleOpenFlowEditor}
+            disabled={flowLoading}
+            className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-black py-4 px-12 rounded-xl text-sm uppercase tracking-wider flex items-center gap-3 shadow-lg transition-all cursor-pointer hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
           >
-            <Network className="w-5 h-5" />
+            {flowLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Network className="w-5 h-5" />}
             Fluxo de Mensagem
           </button>
         </div>
@@ -132,8 +249,14 @@ export default function ChatbotPage() {
             Ao transferir para operador humano, nossa inteligência desliga-se do chat de WhatsApp instantaneamente, prevenindo interrupções ou loops.
           </p>
         </div>
+        {loadingChats && (
+          <p className="text-xs text-[#64748B] text-center py-6">Carregando conversas...</p>
+        )}
+        {!loadingChats && chats.length === 0 && (
+          <p className="text-xs text-[#64748B] text-center py-6 italic">Nenhuma conversa ativa.</p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-semibold text-xs leading-normal">
-          {chats.map((c) => (
+          {!loadingChats && chats.map((c) => (
             <div
               key={c.id}
               className={`p-4 border rounded-xl flex flex-col justify-between relative bg-slate-50/50 ${

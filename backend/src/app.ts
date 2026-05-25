@@ -8,6 +8,8 @@ import Fastify from 'fastify'
 import { env } from './config/env'
 import { appointmentsRoutes } from './modules/appointments/appointments.routes'
 import { authRoutes } from './modules/auth/auth.routes'
+import { chatbotRoutes } from './modules/chatbot/chatbot.routes'
+import { whatsappRoutes } from './modules/whatsapp/whatsapp.routes'
 import { errorHandler } from './shared/middlewares/error-handler'
 
 export async function buildApp() {
@@ -61,6 +63,8 @@ export async function buildApp() {
 
   await app.register(authRoutes)
   await app.register(appointmentsRoutes)
+  await app.register(chatbotRoutes)
+  await app.register(whatsappRoutes)
 
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
 

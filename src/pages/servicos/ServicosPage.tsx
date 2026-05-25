@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   Trash2, 
@@ -18,15 +18,20 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import { MOCK_SERVICES, MOCK_PROFESSIONALS } from '../../constants/mockData';
-import { Servico } from '../../types';
+import { useAuthStore } from '../../store/authStore';
+import { fetchServices, createService, fetchProfessionals } from '../../services/supabaseService';
+import { Profissional, Servico } from '../../types';
 
 export default function ServicosPage() {
-  const [services, setServices] = useState<Servico[]>(MOCK_SERVICES);
+  const { tenant } = useAuthStore();
+  const [services, setServices] = useState<Servico[]>([]);
+  const [professionals, setProfessionals] = useState<Profissional[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  // Form states for New Service
   const [newName, setNewName] = useState('');
   const [newCat, setNewCat] = useState('Cabelo');
   const [newPrice, setNewPrice] = useState('50.00');
@@ -35,38 +40,55 @@ export default function ServicosPage() {
 
   const categories = ['todas', 'Cabelo', 'Barba', 'Combos', 'Estética'];
 
-  // Categories filtering operations
+  useEffect(() => {
+    if (!tenant?.id) return;
+    setLoading(true);
+    Promise.all([fetchServices(tenant.id), fetchProfessionals(tenant.id)])
+      .then(([svcs, pros]) => {
+        setServices(svcs);
+        setProfessionals(pros);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tenant?.id]);
+
   const filteredServices = selectedCategory === 'todas'
     ? services
     : services.filter(s => s.categoria === selectedCategory);
 
-  const handleAddNewService = (e: React.FormEvent) => {
+  const handleAddNewService = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName) return;
-
-    const freshService: Servico = {
-      id: `s-added-${Date.now()}`,
-      nome: newName,
-      categoria: newCat,
-      duracao: newDuration,
-      preco: parseFloat(newPrice) || 50.00,
-      profissionaisIds: ['p-1', 'p-2'], // default assigned
-      status: 'Ativo',
-      descricao: newDesc
-    };
-
-    setServices([...services, freshService]);
-    setIsAddOpen(false);
-
-    // Reset Form
-    setNewName('');
-    setNewPrice('50.00');
-    setNewDesc('');
+    if (!newName || !tenant?.id) return;
+    setSaving(true);
+    try {
+      const created = await createService(tenant.id, {
+        nome: newName,
+        categoria: newCat,
+        duracao: newDuration,
+        preco: parseFloat(newPrice) || 50.00,
+        descricao: newDesc,
+      });
+      setServices(prev => [...prev, created]);
+      setIsAddOpen(false);
+      setNewName('');
+      setNewPrice('50.00');
+      setNewDesc('');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-semibold">
+          Erro: {error}
+        </div>
+      )}
+
       {/* TITLE OPTIONS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-[#E2E8F0]">
         <div>
@@ -119,7 +141,14 @@ export default function ServicosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0] font-medium text-[#1A1F2E]">
-              {filteredServices.map((service) => (
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-xs text-[#64748B] font-medium">
+                    Carregando serviços...
+                  </td>
+                </tr>
+              )}
+              {!loading && filteredServices.map((service) => (
                 <tr key={service.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4">
                     <div>
@@ -237,18 +266,19 @@ export default function ServicosPage() {
                 />
               </div>
 
-              {/* SIMULATED ASSIGNED PROS */}
-              <div>
-                <label className="text-[10px] font-bold text-[#1A1F2E] uppercase block mb-2">Quem Pode Realizar:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {MOCK_PROFESSIONALS.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 bg-[#F8FAFC] p-2 border border-[#E2E8F0] rounded-lg cursor-pointer">
-                      <input type="checkbox" defaultChecked className="w-3.5 h-3.5 text-[#0F4C81] border-[#E2E8F0]" />
-                      <span className="text-[10px] font-bold text-[#1A1F2E]">{p.nome}</span>
-                    </label>
-                  ))}
+              {professionals.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-bold text-[#1A1F2E] uppercase block mb-2">Quem Pode Realizar:</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {professionals.map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 bg-[#F8FAFC] p-2 border border-[#E2E8F0] rounded-lg cursor-pointer">
+                        <input type="checkbox" defaultChecked className="w-3.5 h-3.5 text-[#0F4C81] border-[#E2E8F0]" />
+                        <span className="text-[10px] font-bold text-[#1A1F2E]">{p.nome}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
                 <button
@@ -260,9 +290,10 @@ export default function ServicosPage() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold px-5 py-2 rounded-lg font-bold uppercase tracking-wider text-[11.5px]"
+                  disabled={saving}
+                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-bold px-5 py-2 rounded-lg uppercase tracking-wider text-[11.5px]"
                 >
-                  Confirmar Serviço
+                  {saving ? 'Salvando...' : 'Confirmar Serviço'}
                 </button>
               </div>
 

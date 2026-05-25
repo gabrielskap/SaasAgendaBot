@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
   Trash2, 
@@ -18,47 +18,66 @@ import {
   UserPlus,
   Users
 } from 'lucide-react';
-import { MOCK_PROFESSIONALS } from '../../constants/mockData';
+import { useAuthStore } from '../../store/authStore';
+import { fetchProfessionals, createProfessional } from '../../services/supabaseService';
 import { Profissional } from '../../types';
 
 export default function ProfissionaisPage() {
-  const [professionals, setProfessionals] = useState<Profissional[]>(MOCK_PROFESSIONALS);
-  const [selectedPro, setSelectedPro] = useState<Profissional | null>(MOCK_PROFESSIONALS[0]);
+  const { tenant } = useAuthStore();
+  const [professionals, setProfessionals] = useState<Profissional[]>([]);
+  const [selectedPro, setSelectedPro] = useState<Profissional | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  // New Pro States
   const [newName, setNewName] = useState('');
   const [newSpeciality, setNewSpeciality] = useState('');
   const [newComission, setNewComission] = useState('40');
 
-  const handleCreatePro = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!tenant?.id) return;
+    setLoading(true);
+    fetchProfessionals(tenant.id)
+      .then(data => {
+        setProfessionals(data);
+        if (data.length > 0) setSelectedPro(data[0]);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tenant?.id]);
+
+  const handleCreatePro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName) return;
-
-    const freshPro: Profissional = {
-      id: `p-added-${Date.now()}`,
-      nome: newName,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-      especialidades: [newSpeciality || 'Corte Geral'],
-      status: 'Ativo',
-      atendimentosMes: 0,
-      faturamento: 0,
-      avaliacao: 5.0,
-      comissaoPercentual: parseInt(newComission) || 40
-    };
-
-    setProfessionals([...professionals, freshPro]);
-    setIsAddOpen(false);
-
-    // Reset Form
-    setNewName('');
-    setNewSpeciality('');
-    setNewComission('40');
+    if (!newName || !tenant?.id) return;
+    setSaving(true);
+    try {
+      const created = await createProfessional(tenant.id, {
+        nome: newName,
+        especialidades: [newSpeciality || 'Corte Geral'],
+        comissaoPercentual: parseInt(newComission) || 40,
+      });
+      setProfessionals(prev => [...prev, created]);
+      setIsAddOpen(false);
+      setNewName('');
+      setNewSpeciality('');
+      setNewComission('40');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-semibold">
+          Erro: {error}
+        </div>
+      )}
+
       {/* HEADER SECTION CONTROLS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-[#E2E8F0]">
         <div>
@@ -82,7 +101,12 @@ export default function ProfissionaisPage() {
         
         {/* PROFESSIONALS GRID CARD ROSTER (LEFT 8 COLS) */}
         <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {professionals.map((pro) => {
+          {loading && (
+            <div className="col-span-2 py-12 text-center text-xs text-[#64748B] font-medium">
+              Carregando profissionais...
+            </div>
+          )}
+          {!loading && professionals.map((pro) => {
             const isSelected = selectedPro?.id === pro.id;
             return (
               <div 
@@ -254,9 +278,10 @@ export default function ProfissionaisPage() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold px-5 py-2 rounded-lg font-bold uppercase tracking-wider text-[11.5px]"
+                  disabled={saving}
+                  className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 disabled:opacity-60 text-white font-bold px-5 py-2 rounded-lg uppercase tracking-wider text-[11.5px]"
                 >
-                  Adicionar Profissional
+                  {saving ? 'Salvando...' : 'Adicionar Profissional'}
                 </button>
               </div>
 

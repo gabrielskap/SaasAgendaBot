@@ -23,7 +23,16 @@ import {
   Star,
   BrainCircuit
 } from 'lucide-react';
-import { MOCK_FAQ } from '../constants/mockData';
+const FAQ_ITEMS = [
+  { p: 'Como funciona o teste de 14 dias?', r: 'Você pode testar todas as funcionalidades do plano Pro gratuitamente sem inserir cartão de crédito.' },
+  { p: 'Preciso instalar algum aplicativo no celular?', r: 'Não, o AgendaBot é uma aplicação web hospedada na nuvem. Você pode acessá-la de qualquer dispositivo via navegador.' },
+  { p: 'Como funciona a integração com o WhatsApp?', r: 'Nós conectamos seu número do WhatsApp à nossa API (Evolution API) de forma rápida e segura através da leitura de um QR-Code.' },
+  { p: 'O chatbot consegue responder dúvidas de clientes?', r: 'Sim, você pode configurar um menu de respostas rápidas e perguntas frequentes. Para dúvidas fora disso, ele transfere para humanos.' },
+  { p: 'Como são calculadas as comissões?', r: 'As comissões são liquidadas no momento da conclusão do atendimento com base nos percentuais individuais de comissão declarados por profissional.' },
+  { p: 'Posso migrar meus dados de outra plataforma?', r: 'Com certeza. Nossa equipe de suporte realiza a importação de planilhas de clientes e equipe de forma totalmente gratuita.' },
+  { p: 'Há amarras ou contrato de fidelidade?', r: 'Nenhum. Nossos planos são de faturamento mensal ou anual recorrente, e você cancela na hora que quiser de forma instantânea.' },
+  { p: 'O que acontece em caso de cancelamento em cima da hora?', r: 'Você pode habilitar a cobrança automática de um sinal securitário (Pix ou Cartão) no ato do agendamento para diminuir agendamentos falsos.' },
+];
 
 interface LandingPageProps {
   onNavigateToLogin: () => void;
@@ -561,7 +570,7 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister }:
           </div>
 
           <div className="space-y-4">
-            {MOCK_FAQ.map((faq, idx) => {
+            {FAQ_ITEMS.map((faq, idx) => {
               const isOpen = activeFaq === idx;
               return (
                 <div key={idx} className="border border-[#E2E8F0] rounded-xl overflow-hidden bg-[#F8FAFC] transition-colors">

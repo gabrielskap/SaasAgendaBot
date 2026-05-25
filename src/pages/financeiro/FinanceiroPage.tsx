@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -21,17 +21,54 @@ import {
   Plus,
   ArrowDownRight
 } from 'lucide-react';
-import { MOCK_FINANCIAL_TRANSACTIONS } from '../../constants/mockData';
+import { useAuthStore } from '../../store/authStore';
+import {
+  fetchTransactions,
+  fetchProfessionals,
+  fetchFinancialStats,
+  type Transaction,
+  type FinancialStats,
+} from '../../services/supabaseService';
+import { Profissional } from '../../types';
 
 export default function FinanceiroPage() {
-  const [transactions, setTransactions] = useState(MOCK_FINANCIAL_TRANSACTIONS);
+  const { tenant } = useAuthStore();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [professionals, setProfessionals] = useState<Profissional[]>([]);
+  const [financialStats, setFinancialStats] = useState<FinancialStats>({
+    faturamentoMes: 0,
+    concluidoHoje: 0,
+    sinaisBloqueados: 0,
+    custoOperacao: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'caixa' | 'comissoes'>('caixa');
 
+  useEffect(() => {
+    if (!tenant?.id) return;
+    setLoading(true);
+    Promise.all([
+      fetchTransactions(tenant.id),
+      fetchProfessionals(tenant.id),
+      fetchFinancialStats(tenant.id),
+    ])
+      .then(([txns, pros, stats]) => {
+        setTransactions(txns);
+        setProfessionals(pros);
+        setFinancialStats(stats);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tenant?.id]);
+
+  const fmt = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const stats = [
-    { label: 'Faturamento do Mês', val: 'R$ 18.420', percent: '+14%', up: true },
-    { label: 'Concluído Hoje (Caixa)', val: 'R$ 1.940', percent: '+9.4%', up: true },
-    { label: 'Sinais PIX Bloqueados', val: 'R$ 740', percent: '99% liq.', up: true },
-    { label: 'Custo de Operação', val: 'R$ 4.210', percent: '-2%', up: false }
+    { label: 'Faturamento do Mês', val: loading ? '...' : fmt(financialStats.faturamentoMes), percent: 'Este mês', up: true },
+    { label: 'Concluído Hoje (Caixa)', val: loading ? '...' : fmt(financialStats.concluidoHoje), percent: 'Hoje', up: true },
+    { label: 'Sinais PIX Bloqueados', val: loading ? '...' : fmt(financialStats.sinaisBloqueados), percent: 'Pendentes', up: true },
+    { label: 'Custo de Operação', val: loading ? '...' : fmt(financialStats.custoOperacao), percent: 'Este mês', up: false },
   ];
 
   // Draw custom SVG curve chart of monthly financial faturamentos
@@ -77,7 +114,13 @@ export default function FinanceiroPage() {
 
   return (
     <div className="space-y-6">
-      
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-semibold">
+          Erro: {error}
+        </div>
+      )}
+
       {/* TITLE CONTAINER AND METRIC ACTIONS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-[#E2E8F0]">
         <div>
@@ -181,7 +224,12 @@ export default function FinanceiroPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E2E8F0] font-medium text-[#1A1F2E]">
-                    {transactions.map((tr) => (
+                    {loading && (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center text-xs text-[#64748B]">Carregando transações...</td>
+                      </tr>
+                    )}
+                    {!loading && transactions.map((tr) => (
                       <tr key={tr.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-4 font-mono text-[#64748B]">{tr.hora}</td>
                         <td className="px-4 py-4 font-bold">{tr.cliente}</td>
@@ -215,41 +263,42 @@ export default function FinanceiroPage() {
               <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">Provisionamento de Comissões Acumuladas:</span>
               
               <div className="space-y-3">
-                {[
-                  { pro: 'Marcos Navalha', comissão: '40%', faturamento: 8520, repasse: 3408, status: 'A Pagar' },
-                  { pro: 'Rodrigo Barber (Fuba)', comissão: '35%', faturamento: 7120, repasse: 2492, status: 'Pago' },
-                  { pro: 'Dra. Beatriz Santos', comissão: '50%', faturamento: 10680, repasse: 5340, status: 'A Pagar' }
-                ].map((c) => (
-                  <div key={c.pro} className="flex justify-between items-center bg-[#F8FAFC] border border-[#E2E8F0] p-3.5 rounded-xl">
-                    <div className="space-y-0.5 text-left">
-                      <h4 className="font-bold text-[#1A1F2E]">{c.pro}</h4>
-                      <p className="text-[10px] text-[#64748B] font-mono">
-                        Comissão: <b>{c.comissão}</b> • Faturamento Parceiro: R$ {c.faturamento}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <span className="font-jetbrains font-bold text-emerald-700 text-sm block">R$ {c.repasse}</span>
-                        <span className={`text-[9px] uppercase font-bold block mt-0.5 ${
-                          c.status === 'Pago' ? 'text-[#00C896]' : 'text-orange-500'
-                        }`}>
-                          {c.status}
-                        </span>
+                {loading && (
+                  <p className="text-xs text-[#64748B] text-center py-6">Carregando comissões...</p>
+                )}
+                {!loading && professionals.map((pro) => {
+                  const repasse = pro.faturamento * (pro.comissaoPercentual / 100);
+                  return (
+                    <div key={pro.id} className="flex justify-between items-center bg-[#F8FAFC] border border-[#E2E8F0] p-3.5 rounded-xl">
+                      <div className="space-y-0.5 text-left">
+                        <h4 className="font-bold text-[#1A1F2E]">{pro.nome}</h4>
+                        <p className="text-[10px] text-[#64748B] font-mono">
+                          Comissão: <b>{pro.comissaoPercentual}%</b> • Faturamento Parceiro: R$ {pro.faturamento.toFixed(2)}
+                        </p>
                       </div>
-                      
-                      {c.status === 'A Pagar' && (
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="font-jetbrains font-bold text-emerald-700 text-sm block">R$ {repasse.toFixed(2)}</span>
+                          <span className="text-[9px] uppercase font-bold block mt-0.5 text-orange-500">
+                            A Pagar
+                          </span>
+                        </div>
+
                         <button
-                          onClick={() => alert(`Repasse de comissão para ${c.pro} liquidada via PIX com sucesso!`)}
+                          onClick={() => alert(`Repasse de comissão para ${pro.nome} liquidada via PIX com sucesso!`)}
                           className="bg-[#0F4C81] hover:bg-[#0F4C81]/90 text-white font-bold p-1 rounded-sm cursor-pointer"
                           title="Lançar Pagamento"
                         >
                           <Check className="w-5.5 h-5.5" />
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {!loading && professionals.length === 0 && (
+                  <p className="text-xs text-[#64748B] text-center py-6">Nenhum profissional cadastrado.</p>
+                )}
               </div>
             </div>
           )}

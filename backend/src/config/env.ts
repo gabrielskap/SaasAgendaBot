@@ -5,7 +5,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3333),
   HOST: z.string().default('0.0.0.0'),
 
-  DATABASE_URL: z.string(),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   REDIS_URL: z.string().optional(),      // URL completa (Upstash, Railway, etc.)
   REDIS_HOST: z.string().default('localhost'),
@@ -19,6 +20,9 @@ const envSchema = z.object({
 
   APP_URL: z.string().default('http://localhost:3333'),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+
+  UAZAPI_BASE_URL: z.string().url(),
+  UAZAPI_GLOBAL_TOKEN: z.string().min(1),
 })
 
 const parsed = envSchema.safeParse(process.env)

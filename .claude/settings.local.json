@@ -9,7 +9,10 @@
       "PowerShell(Get-Command docker -ErrorAction SilentlyContinue; Get-Command \"docker.exe\" -ErrorAction SilentlyContinue; Test-Path \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\"; Test-Path \"$env:LOCALAPPDATA\\\\Docker\\\\wsl\")",
       "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)",
       "PowerShell(winget --version 2>&1)",
-      "PowerShell(wsl --status 2>&1)"
+      "PowerShell(wsl --status 2>&1)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Git\\\\SaasAgendaBot\\\\backend\" -Recurse -Filter \"*.js\" -o File)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs grep -l \"whatsapp\\\\|uazapi\\\\|instance\")"
     ]
   }
 }

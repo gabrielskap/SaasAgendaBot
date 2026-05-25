@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import { buildApp } from './app'
-import { prisma } from './config/database'
 import { env } from './config/env'
 import { redis } from './config/redis'
 
@@ -17,7 +16,6 @@ async function main() {
   const shutdown = async (signal: string) => {
     app.log.info(`Received ${signal}, shutting down…`)
     await app.close()
-    await prisma.$disconnect()
     await redis?.quit()
     process.exit(0)
   }
